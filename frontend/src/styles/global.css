@@ -1,0 +1,112 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg:        #0a0a0f;
+  --bg2:       #111118;
+  --bg3:       #18181f;
+  --border:    rgba(255,255,255,0.08);
+  --border2:   rgba(255,255,255,0.14);
+  --txt:       #f0f0f0;
+  --txt2:      #9898a8;
+  --txt3:      #555566;
+  --accent:    #e8c840;
+  --accent2:   #c8a820;
+  --green:     #22c97a;
+  --red:       #e84040;
+  --blue:      #4090e8;
+  --orange:    #e87840;
+  --r:         6px;
+  --r2:        10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 15px; scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--txt);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,h2,h3,h4 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+input, select { font: inherit; color: inherit; }
+img { display: block; max-width: 100%; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Utility */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.tag { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; }
+
+/* Score colours */
+.score-elite  { color: var(--green); }
+.score-good   { color: var(--blue); }
+.score-mid    { color: var(--orange); }
+.score-weak   { color: var(--red); }
+
+.bg-elite  { background: rgba(34,201,122,.15); color: var(--green); }
+.bg-good   { background: rgba(64,144,232,.15); color: var(--blue); }
+.bg-mid    { background: rgba(232,120,64,.15);  color: var(--orange); }
+.bg-weak   { background: rgba(232,64,64,.15);   color: var(--red); }
+
+/* Form badges */
+.form-W { background: var(--green); color: #000; }
+.form-D { background: var(--txt3);  color: var(--txt); }
+.form-L { background: var(--red);   color: #fff; }
+
+/* Thin bar */
+.bar-track { width: 100%; height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.bar-fill  { height: 5px; border-radius: 3px; transition: width .5s ease; }
+
+/* Card */
+.card {
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+.card:hover { border-color: var(--border2); }
+
+/* Divider */
+.divider { height: 0.5px; background: var(--border); }
+
+/* Fade-in */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp .35s ease both; }
+
+/* Pulse dot for live */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.live-dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--red);
+  animation: pulse 1.4s ease infinite;
+}
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: var(--r);
+}

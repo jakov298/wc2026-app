@@ -1,0 +1,18 @@
+{
+  "name": "wc2026-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev":   "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express":        "^4.19.2",
+    "cors":           "^2.8.5",
+    "axios":          "^1.7.2",
+    "@supabase/supabase-js": "^2.43.4",
+    "@anthropic-ai/sdk": "^0.24.0",
+    "node-cron":      "^3.0.3",
+    "dotenv":         "^16.4.5"
+  }
+}

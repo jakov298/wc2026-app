@@ -1,0 +1,367 @@
+import React, { useState, useEffect, useCallback } from 'react'
+import { useApp }         from '../App'
+import { api }            from '../lib/supabase'
+import { predictMatch }   from '../lib/rankings'
+import { CONDITIONS }     from '../lib/data'
+
+export default function MatchModal({ fixtureId, onClose }) {
+  const { getFixture, getTeam, getRanking, results, condWeights } = useApp()
+
+  const fixture  = getFixture(fixtureId)
+  const homeTeam = getTeam(fixture?.home)
+  const awayTeam = getTeam(fixture?.away)
+  const homeRank = getRanking(fixture?.home)
+  const awayRank = getRanking(fixture?.away)
+
+  const [analysis,    setAnalysis]    = useState(null)
+  const [analyzing,   setAnalyzing]   = useState(false)
+  const [prediction,  setPrediction]  = useState(null)
+  const [activeTab,   setActiveTab]   = useState('preview')  // preview | analysis | conditions
+  const [result,      setResult]      = useState({ home: '', away: '' })
+  const [saving,      setSaving]      = useState(false)
+
+  const existingResult = results.find(r => r.fixture_id === fixtureId)
+
+  useEffect(() => {
+    if (!fixture || !homeTeam || !awayTeam) return
+    const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
+    setPrediction(pred)
+
+    // Load cached analysis if available
+    api.getCachedAnalysis(fixtureId)
+      .then(a => { if (a) setAnalysis(a.content) })
+      .catch(() => {})
+  }, [fixtureId, results])
+
+  const generateAnalysis = useCallback(async () => {
+    if (analyzing) return
+    setAnalyzing(true)
+    setActiveTab('analysis')
+    try {
+      const context = {
+        home:       homeTeam, away: awayTeam,
+        homeRank:   homeRank, awayRank: awayRank,
+        fixture,    prediction, results,
+        existingResult,
+      }
+      const res = await api.getMatchAnalysis(fixtureId, context)
+      setAnalysis(res.analysis)
+    } catch (e) {
+      setAnalysis('Analysis unavailable — check your API connection.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }, [fixtureId, homeTeam, awayTeam, fixture, prediction, analyzing])
+
+  const saveResult = async () => {
+    if (!result.home || !result.away) return
+    setSaving(true)
+    try {
+      await api.saveResult({
+        fixture_id:  fixtureId,
+        home_team:   fixture.home,
+        away_team:   fixture.away,
+        home_score:  parseInt(result.home),
+        away_score:  parseInt(result.away),
+        played_at:   new Date().toISOString(),
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!fixture || !homeTeam || !awayTeam) return null
+
+  const scoreColor = v => v>=80?'var(--green)':v>=65?'var(--blue)':v>=50?'var(--orange)':'var(--red)'
+  const played     = existingResult && existingResult.home_score !== null
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position:'fixed', inset:0, background:'rgba(0,0,0,.75)',
+        zIndex:200, backdropFilter:'blur(3px)',
+      }}/>
+
+      {/* Panel */}
+      <div style={{
+        position:'fixed', inset:'0 0 0 0', display:'flex',
+        alignItems:'flex-end', justifyContent:'center',
+        zIndex:201, pointerEvents:'none',
+      }}>
+        <div style={{
+          width:'100%', maxWidth:640, maxHeight:'92dvh',
+          background:'var(--bg2)', borderRadius:'16px 16px 0 0',
+          border:'0.5px solid var(--border2)',
+          overflowY:'auto', pointerEvents:'all',
+          animation:'slideUp .3s cubic-bezier(.16,1,.3,1) both',
+        }}>
+          <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+
+          {/* Header */}
+          <div style={{ padding:'16px 16px 0', position:'sticky', top:0, background:'var(--bg2)', zIndex:10 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <div style={{ fontSize:11, color:'var(--txt2)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase' }}>
+                Group {fixture.group} · {fixture.city} · {fixture.date}
+                {fixture.roofed && <span style={{ marginLeft:6, color:'var(--blue)' }}>🏟 Covered</span>}
+                {fixture.altitude > 1500 && <span style={{ marginLeft:6, color:'var(--orange)' }}>⛰ High altitude</span>}
+              </div>
+              <button onClick={onClose} style={{ color:'var(--txt3)', fontSize:20, lineHeight:1, padding:'2px 4px' }}>✕</button>
+            </div>
+
+            {/* Teams */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:8, alignItems:'center', marginBottom:14 }}>
+              <TeamBlock team={homeTeam} rank={homeRank} side="home" played={played} result={existingResult} />
+              <div style={{ textAlign:'center' }}>
+                {played ? (
+                  <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:36, fontWeight:900, letterSpacing:'.04em' }}>
+                    {existingResult.home_score}–{existingResult.away_score}
+                  </div>
+                ) : (
+                  <div style={{ color:'var(--txt3)', fontSize:13, fontWeight:600 }}>vs</div>
+                )}
+                {!played && prediction && (
+                  <div style={{ marginTop:4, fontSize:10, color:'var(--txt3)' }}>
+                    <span style={{ color:'var(--blue)' }}>{prediction.homeWin}%</span>
+                    {' / '}
+                    <span>{prediction.draw}%</span>
+                    {' / '}
+                    <span style={{ color:'var(--orange)' }}>{prediction.awayWin}%</span>
+                  </div>
+                )}
+              </div>
+              <TeamBlock team={awayTeam} rank={awayRank} side="away" played={played} result={existingResult} />
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display:'flex', gap:0, borderBottom:'0.5px solid var(--border)' }}>
+              {['preview','conditions','analysis'].map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                  flex:1, padding:'8px 0', fontSize:11, fontWeight:600,
+                  letterSpacing:'.06em', textTransform:'uppercase',
+                  color: activeTab===tab ? 'var(--accent)' : 'var(--txt3)',
+                  borderBottom: activeTab===tab ? '2px solid var(--accent)' : '2px solid transparent',
+                }}>
+                  {tab === 'analysis' && analyzing ? '⟳ Generating…' : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tab content */}
+          <div style={{ padding:16 }}>
+            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} result={result} setResult={setResult} saveResult={saveResult} saving={saving} played={played} existingResult={existingResult} generateAnalysis={generateAnalysis} analyzing={analyzing} />}
+            {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} fixture={fixture} scoreColor={scoreColor} />}
+            {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} analyzing={analyzing} onGenerate={generateAnalysis} homeTeam={homeTeam} awayTeam={awayTeam} />}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function TeamBlock({ team, rank, side, played, result, existingResult }) {
+  const align = side === 'home' ? 'left' : 'right'
+  const ps    = rank?.powerScore
+  const color = ps >= 70 ? 'var(--green)' : ps >= 55 ? 'var(--blue)' : ps >= 40 ? 'var(--orange)' : 'var(--red)'
+  const winner = played && existingResult && (
+    side === 'home' ? existingResult.home_score > existingResult.away_score
+                    : existingResult.away_score > existingResult.home_score
+  )
+
+  return (
+    <div style={{ textAlign: align }}>
+      <div style={{ fontSize:32, lineHeight:1, marginBottom:4 }}>{team.flag}</div>
+      <div style={{
+        fontFamily:"'Barlow Condensed',sans-serif", fontSize:18, fontWeight:800,
+        color: winner ? 'var(--accent)' : 'var(--txt)',
+      }}>{team.name}</div>
+      <div style={{ fontSize:11, color:'var(--txt3)', marginTop:2 }}>
+        {rank?.form?.slice(-3).map((f,i) => (
+          <span key={i} className={`tag form-${f}`} style={{ marginLeft: side==='away'?3:0, marginRight: side==='home'?3:0, fontSize:9 }}>{f}</span>
+        ))}
+      </div>
+      {ps !== undefined && (
+        <div style={{ fontSize:11, color, marginTop:4, fontWeight:600 }}>
+          Power {ps}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, result, setResult, saveResult, saving, played, existingResult, generateAnalysis, analyzing }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* Prediction bar */}
+      {prediction && !played && (
+        <div className="card" style={{ padding:14 }}>
+          <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>Predicted outcome</div>
+          <div style={{ display:'flex', height:10, borderRadius:5, overflow:'hidden', gap:1 }}>
+            <div style={{ flex: prediction.homeWin, background:'var(--blue)' }}/>
+            <div style={{ flex: prediction.draw,    background:'var(--txt3)' }}/>
+            <div style={{ flex: prediction.awayWin, background:'var(--orange)' }}/>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:11 }}>
+            <span style={{ color:'var(--blue)' }}>{homeTeam.name} {prediction.homeWin}%</span>
+            <span style={{ color:'var(--txt3)' }}>Draw {prediction.draw}%</span>
+            <span style={{ color:'var(--orange)' }}>{awayTeam.name} {prediction.awayWin}%</span>
+          </div>
+          {prediction.keyFactors?.length > 0 && (
+            <div style={{ marginTop:10, borderTop:'0.5px solid var(--border)', paddingTop:10, display:'flex', flexDirection:'column', gap:5 }}>
+              {prediction.keyFactors.map((f,i) => (
+                <div key={i} style={{ fontSize:11, color:'var(--txt2)', display:'flex', gap:6 }}>
+                  <span style={{ color:'var(--accent)', flexShrink:0 }}>→</span> {f}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Power bars */}
+      {homeRank && awayRank && (
+        <div className="card" style={{ padding:14 }}>
+          <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>Power index</div>
+          {[
+            { label:'Power score', h: homeRank.powerScore,    a: awayRank.powerScore    },
+            { label:'Form',        h: homeRank.formScore,     a: awayRank.formScore     },
+            { label:'Conditions',  h: homeRank.conditionScore,a: awayRank.conditionScore},
+          ].map(row => (
+            <div key={row.label} style={{ display:'grid', gridTemplateColumns:'1fr 32px 1fr', gap:6, alignItems:'center', marginBottom:8 }}>
+              <div className="bar-track"><div className="bar-fill" style={{ width:`${row.h}%`, background:'var(--blue)', marginLeft:'auto' }}/></div>
+              <div style={{ textAlign:'center', fontSize:9, color:'var(--txt3)', fontWeight:600 }}>{row.label.split(' ').map(w=>w[0]).join('')}</div>
+              <div className="bar-track"><div className="bar-fill" style={{ width:`${row.a}%`, background:'var(--orange)' }}/></div>
+            </div>
+          ))}
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:10, color:'var(--txt3)' }}>
+            <span style={{ color:'var(--blue)' }}>{homeTeam.flag} {homeTeam.name}</span>
+            <span style={{ color:'var(--orange)' }}>{awayTeam.name} {awayTeam.flag}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Venue info */}
+      <div className="card" style={{ padding:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        {[
+          { label:'Venue',    value: fixture.venue },
+          { label:'City',     value: fixture.city },
+          { label:'Altitude', value: `${fixture.altitude}m ${fixture.altitude>1500?'⚠ High':''}` },
+          { label:'Roof',     value: fixture.roofed ? 'Covered ✓' : 'Open air' },
+        ].map(({ label, value }) => (
+          <div key={label}>
+            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
+            <div style={{ fontSize:12, color:'var(--txt)' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Result entry */}
+      {!played && (
+        <div className="card" style={{ padding:14 }}>
+          <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>Enter result</div>
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <input type="number" min="0" max="20" placeholder="0"
+              value={result.home} onChange={e=>setResult(p=>({...p,home:e.target.value}))}
+              style={{ width:60, padding:'8px 10px', textAlign:'center', background:'var(--bg3)', border:'0.5px solid var(--border2)', borderRadius:'var(--r)', fontSize:18, fontWeight:700 }}/>
+            <span style={{ color:'var(--txt3)', fontSize:14 }}>–</span>
+            <input type="number" min="0" max="20" placeholder="0"
+              value={result.away} onChange={e=>setResult(p=>({...p,away:e.target.value}))}
+              style={{ width:60, padding:'8px 10px', textAlign:'center', background:'var(--bg3)', border:'0.5px solid var(--border2)', borderRadius:'var(--r)', fontSize:18, fontWeight:700 }}/>
+            <button onClick={saveResult} disabled={saving || !result.home || !result.away} style={{
+              flex:1, padding:'9px 14px', background:'var(--accent)', color:'#000',
+              borderRadius:'var(--r)', fontWeight:700, fontSize:12, letterSpacing:'.05em', textTransform:'uppercase',
+              opacity: saving||!result.home||!result.away ? .5 : 1,
+            }}>
+              {saving ? 'Saving…' : 'Update rankings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generate AI analysis CTA */}
+      <button onClick={generateAnalysis} disabled={analyzing} style={{
+        padding:'12px', background:'rgba(232,200,64,.08)', border:'0.5px solid rgba(232,200,64,.3)',
+        borderRadius:'var(--r2)', color:'var(--accent)', fontWeight:700, fontSize:12,
+        letterSpacing:'.05em', textTransform:'uppercase',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+      }}>
+        {analyzing ? '⟳ Generating AI analysis…' : '✦ Generate AI match analysis'}
+      </button>
+    </div>
+  )
+}
+
+function ConditionsTab({ homeTeam, awayTeam, fixture, scoreColor }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ fontSize:11, color:'var(--txt3)', lineHeight:1.6 }}>
+        Venue context: <strong style={{ color:'var(--txt)' }}>{fixture.city}</strong>
+        {fixture.roofed && ' · Covered roof neutralises heat and humidity'}
+        {fixture.altitude > 1500 && ` · ${fixture.altitude}m altitude significantly affects stamina`}
+      </div>
+      {CONDITIONS.map(cond => {
+        const hv = homeTeam[cond.key]
+        const av = awayTeam[cond.key]
+        const edge = hv > av + 10 ? homeTeam.name : av > hv + 10 ? awayTeam.name : null
+        const irrelevant = cond.key==='heat' && fixture.roofed
+
+        return (
+          <div key={cond.key} className="card" style={{ padding:12, opacity: irrelevant?.5:1 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontSize:11, fontWeight:600, color: irrelevant?'var(--txt3)':'var(--txt)' }}>
+                {cond.icon} {cond.label}
+                {irrelevant && <span style={{ marginLeft:6, color:'var(--txt3)', fontWeight:400 }}>(neutralised by roof)</span>}
+              </div>
+              {edge && <span className="tag bg-good" style={{ fontSize:9 }}>Edge: {edge}</span>}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 40px 1fr', gap:8, alignItems:'center' }}>
+              <div>
+                <div style={{ fontSize:10, color:'var(--txt3)', marginBottom:4 }}>{homeTeam.flag} {homeTeam.name}</div>
+                <div className="bar-track"><div className="bar-fill" style={{ width:`${hv}%`, background: scoreColor(hv) }}/></div>
+                <div style={{ fontSize:13, fontWeight:700, color: scoreColor(hv), marginTop:4 }}>{hv}</div>
+              </div>
+              <div style={{ textAlign:'center', fontSize:9, color:'var(--txt3)', fontWeight:600 }}>vs</div>
+              <div>
+                <div style={{ fontSize:10, color:'var(--txt3)', marginBottom:4 }}>{awayTeam.flag} {awayTeam.name}</div>
+                <div className="bar-track"><div className="bar-fill" style={{ width:`${av}%`, background: scoreColor(av) }}/></div>
+                <div style={{ fontSize:13, fontWeight:700, color: scoreColor(av), marginTop:4 }}>{av}</div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AnalysisTab({ analysis, analyzing, onGenerate, homeTeam, awayTeam }) {
+  if (analyzing) return (
+    <div style={{ padding:'40px 0', textAlign:'center' }}>
+      <div style={{ fontSize:28, marginBottom:12 }}>✦</div>
+      <div style={{ color:'var(--txt2)', fontSize:13 }}>Generating analysis for {homeTeam.flag} {homeTeam.name} vs {awayTeam.flag} {awayTeam.name}…</div>
+      <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:8 }}>
+        {[80,60,70,50,65].map((w,i) => (
+          <div key={i} className="skeleton" style={{ height:12, width:`${w}%`, marginLeft: i%2 ? 'auto' : 0, borderRadius:6 }}/>
+        ))}
+      </div>
+    </div>
+  )
+
+  if (!analysis) return (
+    <div style={{ padding:'32px 0', textAlign:'center' }}>
+      <div style={{ fontSize:11, color:'var(--txt3)', marginBottom:16 }}>No analysis generated yet</div>
+      <button onClick={onGenerate} style={{
+        padding:'10px 20px', background:'var(--accent)', color:'#000',
+        borderRadius:'var(--r)', fontWeight:700, fontSize:12, letterSpacing:'.05em', textTransform:'uppercase',
+      }}>Generate analysis</button>
+    </div>
+  )
+
+  return (
+    <div style={{ fontSize:13, color:'var(--txt2)', lineHeight:1.75, whiteSpace:'pre-wrap' }}>
+      {analysis}
+    </div>
+  )
+}
