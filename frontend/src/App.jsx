@@ -16,16 +16,20 @@ export const AppCtx = createContext(null)
 export const useApp = () => useContext(AppCtx)
 
 export default function App() {
-  const [results,      setResults]      = useState([])
-  const [rankings,     setRankings]     = useState([])
-  const [condWeights,  setCondWeights]  = useState(null)
-  const [activeMatch,  setActiveMatch]  = useState(null)
-  const [loading,      setLoading]      = useState(true)
-  const [darkMode,     setDarkMode]     = useState(true)
+  const [results,     setResults]     = useState([])
+  const [rankings,    setRankings]    = useState([])
+  const [condWeights, setCondWeights] = useState(null)
+  const [activeMatch, setActiveMatch] = useState(null)
+  const [loading,     setLoading]     = useState(true)
+  const [darkMode,    setDarkMode]    = useState(false)
 
   useEffect(() => {
     document.documentElement.classList.toggle('light', !darkMode)
   }, [darkMode])
+
+  useEffect(() => {
+    document.documentElement.classList.add('light')
+  }, [])
 
   useEffect(() => {
     api.getResults()
@@ -75,12 +79,8 @@ export default function App() {
             <Route path="/fixtures"  element={<FixturePage />} />
           </Routes>
         </Layout>
-
         {activeMatch && (
-          <MatchModal
-            fixtureId={activeMatch}
-            onClose={() => setActiveMatch(null)}
-          />
+          <MatchModal fixtureId={activeMatch} onClose={() => setActiveMatch(null)} />
         )}
       </BrowserRouter>
     </AppCtx.Provider>
@@ -89,7 +89,6 @@ export default function App() {
 
 function Layout({ children, darkMode, setDarkMode }) {
   const loc = useLocation()
-
   const nav = [
     { to: '/',         label: 'Home'     },
     { to: '/fixtures', label: 'Fixtures' },
@@ -101,44 +100,49 @@ function Layout({ children, darkMode, setDarkMode }) {
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh' }}>
       <header style={{
         display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'0 16px', height:52,
+        padding:'0 24px', height:56,
         background:'var(--bg2)', borderBottom:'0.5px solid var(--border)',
         position:'sticky', top:0, zIndex:100,
       }}>
-        <Link to="/" style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:22, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, letterSpacing:'.04em' }}>
+        <Link to="/" style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ fontSize:26, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, letterSpacing:'.04em' }}>
             WC<span style={{ color:'var(--accent)' }}>2026</span>
           </span>
-          <span style={{ fontSize:10, color:'var(--txt2)', fontWeight:500, letterSpacing:'.08em', textTransform:'uppercase', marginTop:2 }}>Intelligence</span>
+          <span style={{ fontSize:11, color:'var(--txt2)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginTop:2 }}>Intelligence</span>
         </Link>
 
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <button
-            onClick={() => setDarkMode(d => !d)}
-            style={{
-              fontSize:15, padding:'4px 8px', borderRadius:'var(--r)',
-              background:'var(--bg3)', border:'0.5px solid var(--border2)',
-              color:'var(--txt2)', cursor:'pointer',
-            }}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div id="adsense-top" style={{
+            minWidth:320, minHeight:50, background:'var(--bg3)',
+            border:'0.5px dashed var(--border)', borderRadius:'var(--r)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:10, color:'var(--txt3)',
+          }}>
+            Advertisement
+          </div>
+
+          <button onClick={() => setDarkMode(d => !d)} style={{
+            fontSize:18, padding:'6px 10px', borderRadius:'var(--r)',
+            background:'var(--bg3)', border:'0.5px solid var(--border2)',
+            color:'var(--txt2)', cursor:'pointer', lineHeight:1,
+          }}>
             {darkMode ? '☀' : '🌙'}
           </button>
 
           <nav style={{ display:'flex', gap:2 }}>
             {nav.map(n => (
               <Link key={n.to} to={n.to} style={{
-                padding:'5px 10px', borderRadius:'var(--r)',
-                fontSize:12, fontWeight:600, letterSpacing:'.04em',
+                padding:'6px 14px', borderRadius:'var(--r)',
+                fontSize:13, fontWeight:600,
                 color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt2)',
-                background: loc.pathname===n.to ? 'rgba(232,200,64,.08)' : 'transparent',
+                background: loc.pathname===n.to ? 'rgba(200,160,0,.10)' : 'transparent',
               }}>{n.label}</Link>
             ))}
           </nav>
         </div>
       </header>
 
-      <main style={{ flex:1, padding:'16px', maxWidth:900, width:'100%', margin:'0 auto' }}>
+      <main style={{ flex:1, padding:'20px 24px', maxWidth:1200, width:'100%', margin:'0 auto' }}>
         {children}
       </main>
 
@@ -151,7 +155,7 @@ function Layout({ children, darkMode, setDarkMode }) {
             flex:1, display:'flex', flexDirection:'column', alignItems:'center',
             padding:'8px 0 10px', gap:3,
             color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt3)',
-            fontSize:9, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase',
+            fontSize:10, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase',
           }}>
             <NavIcon route={n.to} active={loc.pathname===n.to} />
             {n.label}
@@ -164,9 +168,9 @@ function Layout({ children, darkMode, setDarkMode }) {
 
 function NavIcon({ route, active }) {
   const c = active ? 'var(--accent)' : 'var(--txt3)'
-  if (route==='/')         return <svg width="18" height="18" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>
-  if (route==='/fixtures') return <svg width="18" height="18" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-  if (route==='/groups')   return <svg width="18" height="18" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
-  if (route==='/rankings') return <svg width="18" height="18" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+  if (route==='/')         return <svg width="20" height="20" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/></svg>
+  if (route==='/fixtures') return <svg width="20" height="20" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  if (route==='/groups')   return <svg width="20" height="20" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+  if (route==='/rankings') return <svg width="20" height="20" fill="none" stroke={c} strokeWidth="1.8" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
   return null
 }
