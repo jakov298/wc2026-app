@@ -12,18 +12,21 @@ import { api }                  from './lib/supabase'
 import { computePowerRankings } from './lib/rankings'
 import { TEAMS, FIXTURES }      from './lib/data'
 
-// ── Global app context ──────────────────────────────────────────────────────
 export const AppCtx = createContext(null)
 export const useApp = () => useContext(AppCtx)
 
 export default function App() {
   const [results,      setResults]      = useState([])
   const [rankings,     setRankings]     = useState([])
-  const [condWeights,  setCondWeights]  = useState(null)   // null = equal
-  const [activeMatch,  setActiveMatch]  = useState(null)   // fixture id for modal
+  const [condWeights,  setCondWeights]  = useState(null)
+  const [activeMatch,  setActiveMatch]  = useState(null)
   const [loading,      setLoading]      = useState(true)
+  const [darkMode,     setDarkMode]     = useState(true)
 
-  // Load results from Supabase on mount, then recompute rankings
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', !darkMode)
+  }, [darkMode])
+
   useEffect(() => {
     api.getResults()
       .then(r => {
@@ -31,18 +34,15 @@ export default function App() {
         setRankings(computePowerRankings(r, condWeights))
       })
       .catch(() => {
-        // Graceful fallback — still show app with pre-tournament ratings
         setRankings(computePowerRankings([], condWeights))
       })
       .finally(() => setLoading(false))
   }, [])
 
-  // Recompute whenever results or weights change
   useEffect(() => {
     setRankings(computePowerRankings(results, condWeights))
   }, [results, condWeights])
 
-  // Poll for live result updates every 60s
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -67,7 +67,7 @@ export default function App() {
   return (
     <AppCtx.Provider value={ctx}>
       <BrowserRouter>
-        <Layout>
+        <Layout darkMode={darkMode} setDarkMode={setDarkMode}>
           <Routes>
             <Route path="/"          element={<HomePage   />} />
             <Route path="/groups"    element={<GroupsPage />} />
@@ -76,7 +76,6 @@ export default function App() {
           </Routes>
         </Layout>
 
-        {/* Match detail modal */}
         {activeMatch && (
           <MatchModal
             fixtureId={activeMatch}
@@ -88,8 +87,7 @@ export default function App() {
   )
 }
 
-// ── Shell layout ─────────────────────────────────────────────────────────────
-function Layout({ children }) {
+function Layout({ children, darkMode, setDarkMode }) {
   const loc = useLocation()
 
   const nav = [
@@ -101,7 +99,6 @@ function Layout({ children }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh' }}>
-      {/* Top bar */}
       <header style={{
         display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 16px', height:52,
@@ -115,31 +112,36 @@ function Layout({ children }) {
           <span style={{ fontSize:10, color:'var(--txt2)', fontWeight:500, letterSpacing:'.08em', textTransform:'uppercase', marginTop:2 }}>Intelligence</span>
         </Link>
 
-        {/* AdSense banner placeholder — replace with real ad unit */}
-        <div style={{
-          fontSize:9, color:'var(--txt3)', border:'0.5px dashed var(--border)',
-          padding:'2px 8px', borderRadius:3, letterSpacing:'.06em',
-          display:'none',  // will show once AdSense approved
-        }} id="adsense-top">AD</div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <button
+            onClick={() => setDarkMode(d => !d)}
+            style={{
+              fontSize:15, padding:'4px 8px', borderRadius:'var(--r)',
+              background:'var(--bg3)', border:'0.5px solid var(--border2)',
+              color:'var(--txt2)', cursor:'pointer',
+            }}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? '☀' : '🌙'}
+          </button>
 
-        <nav style={{ display:'flex', gap:2 }}>
-          {nav.map(n => (
-            <Link key={n.to} to={n.to} style={{
-              padding:'5px 10px', borderRadius:'var(--r)',
-              fontSize:12, fontWeight:600, letterSpacing:'.04em',
-              color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt2)',
-              background: loc.pathname===n.to ? 'rgba(232,200,64,.08)' : 'transparent',
-            }}>{n.label}</Link>
-          ))}
-        </nav>
+          <nav style={{ display:'flex', gap:2 }}>
+            {nav.map(n => (
+              <Link key={n.to} to={n.to} style={{
+                padding:'5px 10px', borderRadius:'var(--r)',
+                fontSize:12, fontWeight:600, letterSpacing:'.04em',
+                color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt2)',
+                background: loc.pathname===n.to ? 'rgba(232,200,64,.08)' : 'transparent',
+              }}>{n.label}</Link>
+            ))}
+          </nav>
+        </div>
       </header>
 
-      {/* Main content */}
       <main style={{ flex:1, padding:'16px', maxWidth:900, width:'100%', margin:'0 auto' }}>
         {children}
       </main>
 
-      {/* Bottom nav for mobile */}
       <nav style={{
         display:'flex', borderTop:'0.5px solid var(--border)',
         background:'var(--bg2)', position:'sticky', bottom:0, zIndex:100,
