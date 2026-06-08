@@ -296,7 +296,7 @@ function AnalysisTab({ analysis, analyzing, homeTeam, awayTeam }) {
         return (
           <p key={i} style={{
             fontSize:13,
-            color: isBetting ? 'var(--txt3)' : 'var(--txt2)',
+            color: isBetting ? 'var(--txt3)' : 'var(--txt)',
             lineHeight:1.8,
             fontStyle: isBetting ? 'italic' : 'normal',
             borderTop: isBetting ? '0.5px solid var(--border)' : 'none',
