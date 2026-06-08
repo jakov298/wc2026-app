@@ -1,4 +1,4 @@
-import express  from 'express'
+import express   from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
@@ -10,19 +10,24 @@ router.post('/:fixtureId', async (req, res) => {
   const { fixtureId } = req.params
   const { home, away, homeRank, awayRank, fixture, prediction, existingResult } = req.body
 
-  // Return cached analysis — same for every user, saves tokens
+  const isPlayed = existingResult && existingResult.home_score !== null
+  const today    = new Date().toISOString().split('T')[0]
+
   try {
     const { data: cached } = await supabase
       .from('analyses')
       .select('*')
       .eq('fixture_id', fixtureId)
       .single()
+
     if (cached && cached.content) {
-      return res.json({ analysis: cached.content, cached: true })
+      const cacheDate      = cached.updated_at?.split('T')[0]
+      const cacheHadResult = cached.has_result
+      if (isPlayed && cacheHadResult)       return res.json({ analysis: cached.content, cached: true })
+      if (!isPlayed && cacheDate === today) return res.json({ analysis: cached.content, cached: true })
     }
   } catch {}
 
-  const isPlayed   = existingResult && existingResult.home_score !== null
   const resultLine = isPlayed
     ? `Final score: ${home.name} ${existingResult.home_score}-${existingResult.away_score} ${away.name}`
     : `Not yet played. Model: ${home.name} ${prediction?.homeWin}% / Draw ${prediction?.draw}% / ${away.name} ${prediction?.awayWin}%`
@@ -42,7 +47,7 @@ ${away.name.toUpperCase()}: FIFA #${away.fifaRank} · Power ${awayRank?.powerSco
 
 ${prediction?.keyFactors?.length ? prediction.keyFactors.join(' · ') : ''}
 
-Write ONE paragraph covering: tactical matchup, venue conditions impact, key players, ${isPlayed ? 'what the result means for the group' : 'predicted scoreline and best value bet (end with: "Not betting advice. Gamble responsibly.")'}.
+Write ONE paragraph covering: tactical matchup, venue conditions impact, key players, ${isPlayed ? 'what the result means for group qualification.' : 'predicted scoreline and best value bet (end with: "Not betting advice. Gamble responsibly.")'}
 
 Under 200 words. Be specific. Name real players. Reference the data.`
 
