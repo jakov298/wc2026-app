@@ -2,9 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useApp }       from '../App'
 import { supabase }     from '../lib/supabase'
 import { predictMatch } from '../lib/rankings'
-import { CONDITIONS }   from '../lib/data'
 
 const API = import.meta.env.VITE_API_URL || '/api'
+
+const ALL_ATTRS = [
+  { key:'heat',     label:'Heat & humidity',  icon:'☀' },
+  { key:'pitch',    label:'Pitch quality',    icon:'🏟' },
+  { key:'altitude', label:'Altitude',         icon:'⛰' },
+  { key:'travel',   label:'Travel & jet lag', icon:'✈' },
+  { key:'crowd',    label:'Crowd pressure',   icon:'👥' },
+  { key:'schedule', label:'Fixture load',     icon:'📅' },
+  { key:'form',     label:'Form',             icon:'📈' },
+]
 
 export default function MatchModal({ fixtureId, onClose }) {
   const { getFixture, getTeam, getRanking, results, condWeights } = useApp()
@@ -123,7 +132,7 @@ export default function MatchModal({ fixtureId, onClose }) {
 
           <div style={{ padding:16 }}>
             {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} />}
-            {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} fixture={fixture} scoreColor={scoreColor} />}
+            {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} fixture={fixture} scoreColor={scoreColor} />}
             {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} analyzing={analyzing} homeTeam={homeTeam} awayTeam={awayTeam} />}
           </div>
         </div>
@@ -225,25 +234,31 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
   )
 }
 
-function ConditionsTab({ homeTeam, awayTeam, fixture, scoreColor }) {
+function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreColor }) {
+  const hScores = homeRank?.dynamicScores
+  const aScores = awayRank?.dynamicScores
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
       <div style={{ fontSize:11, color:'var(--txt3)', lineHeight:1.6 }}>
-        Venue: <strong style={{ color:'var(--txt)' }}>{fixture.city}</strong>
-        {fixture.roofed && ' · Covered roof neutralises heat and humidity'}
-        {fixture.altitude > 1500 && ` · ${fixture.altitude}m altitude significantly affects stamina`}
+        Venue: <strong style={{ color:'var(--txt)' }}>{fixture.venue}, {fixture.city}</strong>
+        {fixture.roofed && ' · Covered roof — heat & humidity neutralised'}
+        {fixture.altitude > 1500 && ` · ${fixture.altitude}m — major stamina impact`}
       </div>
-      {CONDITIONS.map(cond => {
-        const hv = homeTeam[cond.key]
-        const av = awayTeam[cond.key]
+      {ALL_ATTRS.map(cond => {
+        const hv = hScores?.[cond.key] ?? homeTeam[cond.key] ?? 50
+        const av = aScores?.[cond.key] ?? awayTeam[cond.key] ?? 50
         const edge = hv > av + 10 ? homeTeam.name : av > hv + 10 ? awayTeam.name : null
-        const irrelevant = cond.key === 'heat' && fixture.roofed
+        const neutralised = cond.key === 'heat' && fixture.roofed
+        const note = cond.key === 'heat' && fixture.roofed ? '(neutralised by roof)'
+                   : cond.key === 'altitude' ? `(${fixture.altitude}m${fixture.altitude > 1500 ? ' — high impact' : ''})`
+                   : null
         return (
-          <div key={cond.key} className="card" style={{ padding:12, opacity: irrelevant ? .5 : 1 }}>
+          <div key={cond.key} className="card" style={{ padding:12, opacity: neutralised ? .5 : 1 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <div style={{ fontSize:11, fontWeight:600, color: irrelevant ? 'var(--txt3)' : 'var(--txt)' }}>
+              <div style={{ fontSize:11, fontWeight:600, color: neutralised ? 'var(--txt3)' : 'var(--txt)' }}>
                 {cond.icon} {cond.label}
-                {irrelevant && <span style={{ marginLeft:6, color:'var(--txt3)', fontWeight:400 }}>(neutralised by roof)</span>}
+                {note && <span style={{ marginLeft:6, color:'var(--txt3)', fontWeight:400, fontSize:10 }}>{note}</span>}
               </div>
               {edge && <span className="tag bg-good" style={{ fontSize:9 }}>Edge: {edge}</span>}
             </div>
@@ -263,6 +278,9 @@ function ConditionsTab({ homeTeam, awayTeam, fixture, scoreColor }) {
           </div>
         )
       })}
+      <div style={{ fontSize:10, color:'var(--txt3)', fontStyle:'italic', textAlign:'center', paddingTop:4 }}>
+        Scores reflect actual conditions for this specific fixture
+      </div>
     </div>
   )
 }
