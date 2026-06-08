@@ -62,7 +62,7 @@ Be brutally specific. Name real players. Use real football terminology. Referenc
 
   try {
     const msg = await claude.messages.create({
-      model:      'claude-sonnet-4-20250514',
+      model:      'claude-sonnet-4-5',
       max_tokens: 1500,
       messages:   [{ role: 'user', content: prompt }],
     })
