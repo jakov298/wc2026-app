@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useApp }        from '../App'
-import { api, supabase } from '../lib/supabase'
-import { predictMatch }  from '../lib/rankings'
-import { CONDITIONS }    from '../lib/data'
+import { useApp }       from '../App'
+import { supabase }     from '../lib/supabase'
+import { predictMatch } from '../lib/rankings'
+import { CONDITIONS }   from '../lib/data'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 
@@ -19,58 +19,36 @@ export default function MatchModal({ fixtureId, onClose }) {
   const [analyzing,  setAnalyzing]  = useState(false)
   const [prediction, setPrediction] = useState(null)
   const [activeTab,  setActiveTab]  = useState('preview')
-  const [result,     setResult]     = useState({ home: '', away: '' })
-  const [saving,     setSaving]     = useState(false)
 
   const existingResult = results.find(r => r.fixture_id === fixtureId)
   const played = existingResult && existingResult.home_score !== null
 
-  useEffect(() => {
-    if (!fixture || !homeTeam || !awayTeam) return
-    const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
-    setPrediction(pred)
-    supabase.from('analyses').select('*').eq('fixture_id', fixtureId).single()
-      .then(({ data }) => { if (data?.content) setAnalysis(data.content) })
-      .catch(() => {})
-  }, [fixtureId, results])
-
-  const generateAnalysis = useCallback(async () => {
-    if (analyzing) return
+  const fetchAnalysis = useCallback(async (pred) => {
+    if (!fixture || !homeTeam || !awayTeam || analyzing) return
     setAnalyzing(true)
-    setActiveTab('analysis')
     try {
       const res = await fetch(`${API}/analysis/${fixtureId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           home: homeTeam, away: awayTeam,
-          homeRank, awayRank, fixture, prediction, existingResult,
+          homeRank, awayRank, fixture,
+          prediction: pred,
+          existingResult,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
-      setAnalysis(data.analysis)
-    } catch (e) {
-      setAnalysis('Analysis generation failed — please try again.')
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [fixtureId, homeTeam, awayTeam, fixture, prediction, analyzing, existingResult, homeRank, awayRank])
+      if (res.ok) setAnalysis(data.analysis)
+    } catch {}
+    finally { setAnalyzing(false) }
+  }, [fixtureId, homeTeam, awayTeam, fixture, homeRank, awayRank, existingResult])
 
-  const saveResult = async () => {
-    if (!result.home || !result.away) return
-    setSaving(true)
-    try {
-      await api.saveResult({
-        fixture_id: fixtureId,
-        home_team:  fixture.home,
-        away_team:  fixture.away,
-        home_score: parseInt(result.home),
-        away_score: parseInt(result.away),
-        played_at:  new Date().toISOString(),
-      })
-    } finally { setSaving(false) }
-  }
+  useEffect(() => {
+    if (!fixture || !homeTeam || !awayTeam) return
+    const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
+    setPrediction(pred)
+    fetchAnalysis(pred)
+  }, [fixtureId, results])
 
   if (!fixture || !homeTeam || !awayTeam) return null
 
@@ -137,16 +115,16 @@ export default function MatchModal({ fixtureId, onClose }) {
                   color: activeTab===tab ? 'var(--accent)' : 'var(--txt3)',
                   borderBottom: activeTab===tab ? '2px solid var(--accent)' : '2px solid transparent',
                 }}>
-                  {tab === 'analysis' && analyzing ? '⟳ Generating…' : tab}
+                  {tab === 'analysis' && analyzing ? '⟳ Loading…' : tab}
                 </button>
               ))}
             </div>
           </div>
 
           <div style={{ padding:16 }}>
-            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} result={result} setResult={setResult} saveResult={saveResult} saving={saving} played={played} existingResult={existingResult} generateAnalysis={generateAnalysis} analyzing={analyzing} scoreColor={scoreColor} />}
+            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} />}
             {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} fixture={fixture} scoreColor={scoreColor} />}
-            {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} analyzing={analyzing} onGenerate={generateAnalysis} homeTeam={homeTeam} awayTeam={awayTeam} />}
+            {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} analyzing={analyzing} homeTeam={homeTeam} awayTeam={awayTeam} />}
           </div>
         </div>
       </div>
@@ -176,7 +154,7 @@ function TeamBlock({ team, rank, side, played, existingResult }) {
   )
 }
 
-function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, result, setResult, saveResult, saving, played, existingResult, generateAnalysis, analyzing, scoreColor }) {
+function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       {prediction && !played && (
@@ -239,35 +217,10 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
       </div>
 
       {!played && (
-        <div className="card" style={{ padding:14 }}>
-          <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>Enter result</div>
-          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-            <input type="number" min="0" max="20" placeholder="0" value={result.home}
-              onChange={e => setResult(p => ({ ...p, home: e.target.value }))}
-              style={{ width:60, padding:'8px 10px', textAlign:'center', background:'var(--bg3)', border:'0.5px solid var(--border2)', borderRadius:'var(--r)', fontSize:18, fontWeight:700 }}/>
-            <span style={{ color:'var(--txt3)', fontSize:14 }}>–</span>
-            <input type="number" min="0" max="20" placeholder="0" value={result.away}
-              onChange={e => setResult(p => ({ ...p, away: e.target.value }))}
-              style={{ width:60, padding:'8px 10px', textAlign:'center', background:'var(--bg3)', border:'0.5px solid var(--border2)', borderRadius:'var(--r)', fontSize:18, fontWeight:700 }}/>
-            <button onClick={saveResult} disabled={saving || !result.home || !result.away} style={{
-              flex:1, padding:'9px 14px', background:'var(--accent)', color:'#000',
-              borderRadius:'var(--r)', fontWeight:700, fontSize:12, letterSpacing:'.05em', textTransform:'uppercase',
-              opacity: saving || !result.home || !result.away ? .5 : 1,
-            }}>
-              {saving ? 'Saving…' : 'Update rankings'}
-            </button>
-          </div>
+        <div style={{ fontSize:11, color:'var(--txt3)', textAlign:'center', padding:'8px 0', fontStyle:'italic' }}>
+          Results update automatically via live API
         </div>
       )}
-
-      <button onClick={generateAnalysis} disabled={analyzing} style={{
-        padding:'12px', background:'rgba(232,200,64,.08)', border:'0.5px solid rgba(232,200,64,.3)',
-        borderRadius:'var(--r2)', color:'var(--accent)', fontWeight:700, fontSize:12,
-        letterSpacing:'.05em', textTransform:'uppercase',
-        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-      }}>
-        {analyzing ? '⟳ Generating AI analysis…' : '✦ Generate AI match analysis'}
-      </button>
     </div>
   )
 }
@@ -314,11 +267,13 @@ function ConditionsTab({ homeTeam, awayTeam, fixture, scoreColor }) {
   )
 }
 
-function AnalysisTab({ analysis, analyzing, onGenerate, homeTeam, awayTeam }) {
+function AnalysisTab({ analysis, analyzing, homeTeam, awayTeam }) {
   if (analyzing) return (
     <div style={{ padding:'40px 0', textAlign:'center' }}>
       <div style={{ fontSize:28, marginBottom:12 }}>✦</div>
-      <div style={{ color:'var(--txt2)', fontSize:13 }}>Generating analysis for {homeTeam.flag} {homeTeam.name} vs {awayTeam.flag} {awayTeam.name}…</div>
+      <div style={{ color:'var(--txt2)', fontSize:13 }}>
+        Generating analysis for {homeTeam.flag} {homeTeam.name} vs {awayTeam.flag} {awayTeam.name}…
+      </div>
       <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:8 }}>
         {[80,60,70,50,65].map((w, i) => (
           <div key={i} className="skeleton" style={{ height:12, width:`${w}%`, marginLeft: i%2?'auto':0, borderRadius:6 }}/>
@@ -328,14 +283,8 @@ function AnalysisTab({ analysis, analyzing, onGenerate, homeTeam, awayTeam }) {
   )
 
   if (!analysis) return (
-    <div style={{ padding:'32px 0', textAlign:'center' }}>
-      <div style={{ fontSize:11, color:'var(--txt3)', marginBottom:16, lineHeight:1.6 }}>
-        AI analysis includes tactical breakdown, conditions impact,<br/>key players, prediction and value bet insight.
-      </div>
-      <button onClick={onGenerate} style={{
-        padding:'10px 20px', background:'var(--accent)', color:'#000',
-        borderRadius:'var(--r)', fontWeight:700, fontSize:12, letterSpacing:'.05em', textTransform:'uppercase',
-      }}>Generate analysis</button>
+    <div style={{ padding:'32px 0', textAlign:'center', color:'var(--txt3)', fontSize:13 }}>
+      Analysis unavailable — please try again later.
     </div>
   )
 
