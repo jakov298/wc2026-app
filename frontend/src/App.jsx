@@ -112,15 +112,6 @@ function Layout({ children, darkMode, setDarkMode }) {
         </Link>
 
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div id="adsense-top" style={{
-            minWidth:320, minHeight:50, background:'var(--bg3)',
-            border:'0.5px dashed var(--border)', borderRadius:'var(--r)',
-            display:'flex', alignItems:'center', justifyContent:'center',
-            fontSize:10, color:'var(--txt3)',
-          }}>
-            Advertisement
-          </div>
-
           <button onClick={() => setDarkMode(d => !d)} style={{
             fontSize:18, padding:'6px 10px', borderRadius:'var(--r)',
             background:'var(--bg3)', border:'0.5px solid var(--border2)',
