@@ -126,24 +126,33 @@ function ResultCard({ result, onOpen }) {
 }
 
 function UpcomingRow({ fixture, onOpen }) {
-  const { getTeam } = useApp()
-  const home = getTeam(fixture.home)
-  const away = getTeam(fixture.away)
+  const { getTeam, getRanking } = useApp()
+  const home      = getTeam(fixture.home)
+  const away      = getTeam(fixture.away)
+  const homeRank  = getRanking(fixture.home)
+  const awayRank  = getRanking(fixture.away)
   if (!home || !away) return null
+  const scoreColor = v => v >= 70 ? 'var(--green)' : v >= 55 ? 'var(--blue)' : v >= 40 ? 'var(--orange)' : 'var(--red)'
   return (
     <button onClick={() => onOpen(fixture.id)} className="card" style={{
       display:'flex', alignItems:'center', gap:14, padding:'13px 16px', width:'100%', textAlign:'left',
     }}>
       <div style={{ flex:1, display:'flex', alignItems:'center', gap:10 }}>
         <span style={{ fontSize:24 }}>{home.flag}</span>
-        <span style={{ fontSize:14, fontWeight:600 }}>{home.name}</span>
+        <div>
+          <div style={{ fontSize:14, fontWeight:600 }}>{home.name}</div>
+          {homeRank && <div style={{ fontSize:11, fontWeight:700, color: scoreColor(homeRank.powerScore) }}>Power {homeRank.powerScore}</div>}
+        </div>
       </div>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:12, color:'var(--txt3)', fontWeight:600 }}>{fixture.time}</div>
         <div style={{ fontSize:11, color:'var(--txt3)', marginTop:1 }}>{fixture.date.slice(5)}</div>
       </div>
       <div style={{ flex:1, display:'flex', alignItems:'center', gap:10, justifyContent:'flex-end' }}>
-        <span style={{ fontSize:14, fontWeight:600 }}>{away.name}</span>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:14, fontWeight:600 }}>{away.name}</div>
+          {awayRank && <div style={{ fontSize:11, fontWeight:700, color: scoreColor(awayRank.powerScore) }}>Power {awayRank.powerScore}</div>}
+        </div>
         <span style={{ fontSize:24 }}>{away.flag}</span>
       </div>
       <span style={{ fontSize:18, color:'var(--txt3)', marginLeft:4 }}>›</span>
