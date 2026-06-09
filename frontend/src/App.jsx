@@ -89,6 +89,14 @@ export default function App() {
 
 function Layout({ children, darkMode, setDarkMode }) {
   const loc = useLocation()
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   const nav = [
     { to: '/',         label: 'Home'     },
     { to: '/fixtures', label: 'Fixtures' },
@@ -100,59 +108,67 @@ function Layout({ children, darkMode, setDarkMode }) {
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh' }}>
       <header style={{
         display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'0 24px', height:56,
+        padding:'0 16px', height:52,
         background:'var(--bg2)', borderBottom:'0.5px solid var(--border)',
         position:'sticky', top:0, zIndex:100,
       }}>
-        <Link to="/" style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontSize:26, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, letterSpacing:'.04em' }}>
+        <Link to="/" style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:22, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, letterSpacing:'.04em' }}>
             WC<span style={{ color:'var(--accent)' }}>2026</span>
           </span>
-          <span style={{ fontSize:11, color:'var(--txt2)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginTop:2 }}>Intelligence</span>
+          {!isMobile && (
+            <span style={{ fontSize:11, color:'var(--txt2)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginTop:2 }}>Intelligence</span>
+          )}
         </Link>
 
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <button onClick={() => setDarkMode(d => !d)} style={{
-            fontSize:18, padding:'6px 10px', borderRadius:'var(--r)',
+            fontSize:16, padding:'5px 9px', borderRadius:'var(--r)',
             background:'var(--bg3)', border:'0.5px solid var(--border2)',
             color:'var(--txt2)', cursor:'pointer', lineHeight:1,
           }}>
             {darkMode ? '☀' : '🌙'}
           </button>
 
-          <nav style={{ display:'flex', gap:2 }}>
-            {nav.map(n => (
-              <Link key={n.to} to={n.to} style={{
-                padding:'6px 14px', borderRadius:'var(--r)',
-                fontSize:13, fontWeight:600,
-                color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt2)',
-                background: loc.pathname===n.to ? 'rgba(200,160,0,.10)' : 'transparent',
-              }}>{n.label}</Link>
-            ))}
-          </nav>
+          {/* Desktop nav only */}
+          {!isMobile && (
+            <nav style={{ display:'flex', gap:2 }}>
+              {nav.map(n => (
+                <Link key={n.to} to={n.to} style={{
+                  padding:'6px 14px', borderRadius:'var(--r)',
+                  fontSize:13, fontWeight:600,
+                  color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt2)',
+                  background: loc.pathname===n.to ? 'rgba(200,160,0,.10)' : 'transparent',
+                }}>{n.label}</Link>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
 
-      <main style={{ flex:1, padding:'20px 24px', maxWidth:1200, width:'100%', margin:'0 auto' }}>
+      <main style={{ flex:1, padding: isMobile ? '14px 12px' : '20px 24px', maxWidth:1200, width:'100%', margin:'0 auto' }}>
         {children}
       </main>
 
-      <nav style={{
-        display:'flex', borderTop:'0.5px solid var(--border)',
-        background:'var(--bg2)', position:'sticky', bottom:0, zIndex:100,
-      }}>
-        {nav.map(n => (
-          <Link key={n.to} to={n.to} style={{
-            flex:1, display:'flex', flexDirection:'column', alignItems:'center',
-            padding:'8px 0 10px', gap:3,
-            color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt3)',
-            fontSize:10, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase',
-          }}>
-            <NavIcon route={n.to} active={loc.pathname===n.to} />
-            {n.label}
-          </Link>
-        ))}
-      </nav>
+      {/* Mobile bottom nav only */}
+      {isMobile && (
+        <nav style={{
+          display:'flex', borderTop:'0.5px solid var(--border)',
+          background:'var(--bg2)', position:'sticky', bottom:0, zIndex:100,
+        }}>
+          {nav.map(n => (
+            <Link key={n.to} to={n.to} style={{
+              flex:1, display:'flex', flexDirection:'column', alignItems:'center',
+              padding:'8px 0 10px', gap:3,
+              color: loc.pathname===n.to ? 'var(--accent)' : 'var(--txt3)',
+              fontSize:10, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase',
+            }}>
+              <NavIcon route={n.to} active={loc.pathname===n.to} />
+              {n.label}
+            </Link>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }
