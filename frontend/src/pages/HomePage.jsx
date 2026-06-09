@@ -35,7 +35,12 @@ export default function HomePage() {
         </p>
       </div>
 
-      <Section title="Power rankings — Condition adjusted (Heat, Pitch, Altitude, Travel, Crowd, Schedule & Form)" link="/rankings" linkLabel="See all 48">
+      <Section
+        title="Power rankings"
+        subtitle="Condition adjusted — Heat · Pitch · Altitude · Travel · Crowd · Schedule · Form"
+        link="/rankings"
+        linkLabel="See all 48"
+      >
         {loading
           ? Array.from({length:5},(_,i)=>(
             <div key={i} className="skeleton" style={{ height:56, borderRadius:'var(--r)', marginBottom:6 }}/>
@@ -62,13 +67,16 @@ export default function HomePage() {
   )
 }
 
-function Section({ title, link, linkLabel, children }) {
+function Section({ title, subtitle, link, linkLabel, children }) {
   return (
     <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom: subtitle ? 4 : 12 }}>
         <h2 style={{ fontSize:22, letterSpacing:'.04em' }}>{title}</h2>
         {link && <Link to={link} style={{ fontSize:13, color:'var(--accent)', fontWeight:600 }}>{linkLabel} →</Link>}
       </div>
+      {subtitle && (
+        <p style={{ fontSize:11, color:'var(--txt3)', marginBottom:12, fontWeight:500 }}>{subtitle}</p>
+      )}
       {children}
     </div>
   )
