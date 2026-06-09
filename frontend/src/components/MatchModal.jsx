@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp }       from '../App'
 import { supabase }     from '../lib/supabase'
 import { predictMatch } from '../lib/rankings'
@@ -24,16 +24,42 @@ export default function MatchModal({ fixtureId, onClose }) {
   const homeRank = getRanking(fixture?.home)
   const awayRank = getRanking(fixture?.away)
 
-  const [analysis,   setAnalysis]   = useState(null)
-  const [analyzing,  setAnalyzing]  = useState(false)
-  const [prediction, setPrediction] = useState(null)
-  const [activeTab,  setActiveTab]  = useState('preview')
+  const [analysis,    setAnalysis]    = useState(null)
+  const [analyzing,   setAnalyzing]   = useState(false)
+  const [fakeLoading, setFakeLoading] = useState(false)
+  const [prediction,  setPrediction]  = useState(null)
+  const [activeTab,   setActiveTab]   = useState('preview')
 
   const existingResult = results.find(r => r.fixture_id === fixtureId)
   const played = existingResult && existingResult.home_score !== null
 
-  const fetchAnalysis = useCallback(async (pred) => {
-    if (!fixture || !homeTeam || !awayTeam || analyzing) return
+  // Load cached analysis silently on open
+  useEffect(() => {
+    if (!fixture || !homeTeam || !awayTeam) return
+    const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
+    setPrediction(pred)
+    supabase.from('analyses').select('*').eq('fixture_id', fixtureId).single()
+      .then(({ data }) => { if (data?.content) setAnalysis(data.content) })
+      .catch(() => {})
+  }, [fixtureId, results])
+
+  const handleAnalysisClick = async () => {
+    if (analyzing || fakeLoading) return
+    setActiveTab('analysis')
+
+    // If already cached, show fake loading for 1.5s then reveal
+    if (analysis) {
+      setFakeLoading(true)
+      const cached = analysis
+      setAnalysis(null)
+      setTimeout(() => {
+        setAnalysis(cached)
+        setFakeLoading(false)
+      }, 1500)
+      return
+    }
+
+    // Not cached yet — generate for real
     setAnalyzing(true)
     try {
       const res = await fetch(`${API}/analysis/${fixtureId}`, {
@@ -42,26 +68,23 @@ export default function MatchModal({ fixtureId, onClose }) {
         body: JSON.stringify({
           home: homeTeam, away: awayTeam,
           homeRank, awayRank, fixture,
-          prediction: pred,
-          existingResult,
+          prediction, existingResult,
         }),
       })
       const data = await res.json()
       if (res.ok) setAnalysis(data.analysis)
-    } catch {}
-    finally { setAnalyzing(false) }
-  }, [fixtureId, homeTeam, awayTeam, fixture, homeRank, awayRank, existingResult])
-
-  useEffect(() => {
-    if (!fixture || !homeTeam || !awayTeam) return
-    const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
-    setPrediction(pred)
-    fetchAnalysis(pred)
-  }, [fixtureId, results])
+      else setAnalysis('Analysis unavailable — please try again later.')
+    } catch {
+      setAnalysis('Analysis unavailable — please try again later.')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   if (!fixture || !homeTeam || !awayTeam) return null
 
   const scoreColor = v => v >= 80 ? 'var(--green)' : v >= 65 ? 'var(--blue)' : v >= 50 ? 'var(--orange)' : 'var(--red)'
+  const isLoading  = analyzing || fakeLoading
 
   return (
     <>
@@ -118,22 +141,22 @@ export default function MatchModal({ fixtureId, onClose }) {
 
             <div style={{ display:'flex', borderBottom:'0.5px solid var(--border)' }}>
               {['preview','conditions','analysis'].map(tab => (
-                <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                <button key={tab} onClick={() => tab === 'analysis' ? handleAnalysisClick() : setActiveTab(tab)} style={{
                   flex:1, padding:'8px 0', fontSize:11, fontWeight:600,
                   letterSpacing:'.06em', textTransform:'uppercase',
                   color: activeTab===tab ? 'var(--accent)' : 'var(--txt3)',
                   borderBottom: activeTab===tab ? '2px solid var(--accent)' : '2px solid transparent',
                 }}>
-                  {tab === 'analysis' && analyzing ? '⟳ Loading…' : tab}
+                  {tab === 'analysis' && isLoading ? '⟳ Generating…' : tab}
                 </button>
               ))}
             </div>
           </div>
 
           <div style={{ padding:16 }}>
-            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} />}
+            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} onAnalysis={handleAnalysisClick} />}
             {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} fixture={fixture} scoreColor={scoreColor} />}
-            {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} analyzing={analyzing} homeTeam={homeTeam} awayTeam={awayTeam} />}
+            {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} isLoading={isLoading} homeTeam={homeTeam} awayTeam={awayTeam} />}
           </div>
         </div>
       </div>
@@ -163,7 +186,7 @@ function TeamBlock({ team, rank, side, played, existingResult }) {
   )
 }
 
-function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor }) {
+function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor, onAnalysis }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       {prediction && !played && (
@@ -225,8 +248,18 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
         ))}
       </div>
 
+      <button onClick={onAnalysis} style={{
+        padding:'12px', background:'rgba(232,200,64,.08)',
+        border:'0.5px solid rgba(232,200,64,.3)',
+        borderRadius:'var(--r2)', color:'var(--accent)', fontWeight:700, fontSize:12,
+        letterSpacing:'.05em', textTransform:'uppercase',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+      }}>
+        ✦ View AI match analysis
+      </button>
+
       {!played && (
-        <div style={{ fontSize:11, color:'var(--txt3)', textAlign:'center', padding:'8px 0', fontStyle:'italic' }}>
+        <div style={{ fontSize:11, color:'var(--txt3)', textAlign:'center', fontStyle:'italic' }}>
           Results update automatically via live API
         </div>
       )}
@@ -285,8 +318,8 @@ function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreC
   )
 }
 
-function AnalysisTab({ analysis, analyzing, homeTeam, awayTeam }) {
-  if (analyzing) return (
+function AnalysisTab({ analysis, isLoading, homeTeam, awayTeam }) {
+  if (isLoading) return (
     <div style={{ padding:'40px 0', textAlign:'center' }}>
       <div style={{ fontSize:28, marginBottom:12 }}>✦</div>
       <div style={{ color:'var(--txt2)', fontSize:13 }}>
