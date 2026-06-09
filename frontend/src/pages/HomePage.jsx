@@ -31,11 +31,11 @@ export default function HomePage() {
           WC 2026 <span style={{ color:'var(--accent)' }}>Intelligence</span>
         </h1>
         <p style={{ color:'var(--txt2)', fontSize:14, maxWidth:560, margin:'0 auto', lineHeight:1.6 }}>
-          Live power rankings updated after every result · AI match analysis · Condition-adjusted predictions for all 48 teams
+          Condition-adjusted predictions for all 48 teams · Live power rankings updated after every result · AI match analysis
         </p>
       </div>
 
-      <Section title="Power rankings" link="/rankings" linkLabel="See all 48">
+      <Section title="Power rankings — Condition adjusted (Heat, Pitch, Altitude, Travel, Crowd, Schedule & Form)" link="/rankings" linkLabel="See all 48">
         {loading
           ? Array.from({length:5},(_,i)=>(
             <div key={i} className="skeleton" style={{ height:56, borderRadius:'var(--r)', marginBottom:6 }}/>
