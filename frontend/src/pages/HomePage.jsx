@@ -1,21 +1,7 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Link }     from 'react-router-dom'
 import { useApp }   from '../App'
 import { FIXTURES } from '../lib/data'
-
-function AdBanner({ slot }) {
-  useEffect(() => {
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch {}
-  }, [])
-  return (
-    <ins className="adsbygoogle"
-      style={{ display:'block', width:'100%', minHeight:0 }}
-      data-ad-client="ca-pub-4765456413213962"
-      data-ad-slot={slot}
-      data-ad-format="auto"
-      data-full-width-responsive="true"/>
-  )
-}
 
 export default function HomePage() {
   const { rankings, results, setActiveMatch, loading } = useApp()
@@ -49,8 +35,6 @@ export default function HomePage() {
         </p>
       </div>
 
-      <AdBanner slot="7416715343" />
-
       <Section title="Power rankings" link="/rankings" linkLabel="See all 48">
         {loading
           ? Array.from({length:5},(_,i)=>(
@@ -73,8 +57,6 @@ export default function HomePage() {
           {upcoming.map(f => <UpcomingRow key={f.id} fixture={f} onOpen={setActiveMatch} />)}
         </div>
       </Section>
-
-      <AdBanner slot="8047270733" />
 
     </div>
   )
