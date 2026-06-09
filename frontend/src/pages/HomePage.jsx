@@ -9,7 +9,7 @@ function AdBanner({ slot }) {
   }, [])
   return (
     <ins className="adsbygoogle"
-      style={{ display:'block', width:'100%' }}
+      style={{ display:'block', width:'100%', minHeight:0 }}
       data-ad-client="ca-pub-4765456413213962"
       data-ad-slot={slot}
       data-ad-format="auto"
@@ -37,9 +37,6 @@ export default function HomePage() {
     .sort((a, b) => new Date(b.played_at) - new Date(a.played_at))
     .slice(0, 4)
 
-  // Show ads only after AdSense approves — window.adsbygoogle will be defined
-  const adsReady = typeof window !== 'undefined' && window.adsbygoogle !== undefined
-
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
@@ -52,7 +49,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      {adsReady && <AdBanner slot="7416715343" />}
+      <AdBanner slot="7416715343" />
 
       <Section title="Power rankings" link="/rankings" linkLabel="See all 48">
         {loading
@@ -77,7 +74,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      {adsReady && <AdBanner slot="8047270733" />}
+      <AdBanner slot="8047270733" />
 
     </div>
   )
