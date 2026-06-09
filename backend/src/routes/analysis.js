@@ -13,17 +13,16 @@ router.post('/:fixtureId', async (req, res) => {
   const isPlayed = existingResult && existingResult.home_score !== null
   const today    = new Date().toISOString().split('T')[0]
 
+  // Smart cache — same analysis for all users
   try {
     const { data: cached } = await supabase
       .from('analyses')
       .select('*')
       .eq('fixture_id', fixtureId)
       .single()
-
-    if (cached && cached.content) {
-      const cacheDate      = cached.updated_at?.split('T')[0]
-      const cacheHadResult = cached.has_result
-      if (isPlayed && cacheHadResult)       return res.json({ analysis: cached.content, cached: true })
+    if (cached?.content) {
+      const cacheDate = cached.updated_at?.split('T')[0]
+      if (isPlayed && cached.has_result) return res.json({ analysis: cached.content, cached: true })
       if (!isPlayed && cacheDate === today) return res.json({ analysis: cached.content, cached: true })
     }
   } catch {}
@@ -35,21 +34,37 @@ router.post('/:fixtureId', async (req, res) => {
   const formHome = homeRank?.form?.slice(-3).join(', ') || 'No games yet'
   const formAway = awayRank?.form?.slice(-3).join(', ') || 'No games yet'
 
-  const prompt = `You are a world-class football analyst covering the 2026 FIFA World Cup. Write ONE concise paragraph of exactly 200 words or less.
+  const hd = homeRank?.dynamicScores || {}
+  const ad = awayRank?.dynamicScores || {}
 
-MATCH: ${home.flag} ${home.name} (FIFA #${home.fifaRank}, Power ${homeRank?.powerScore ?? 'N/A'}/100) vs ${away.flag} ${away.name} (FIFA #${away.fifaRank}, Power ${awayRank?.powerScore ?? 'N/A'}/100)
+  const prompt = `You are a world-class football analyst covering the 2026 FIFA World Cup. Write ONE analytical paragraph of 180-200 words.
+
+MATCH: ${home.flag} ${home.name} vs ${away.flag} ${away.name}
 Group ${fixture.group} · ${fixture.venue}, ${fixture.city} · ${fixture.date}
 Status: ${isPlayed ? 'COMPLETED' : 'UPCOMING'} · ${resultLine}
-Venue: Altitude ${fixture.altitude}m${fixture.altitude > 1500 ? ' (HIGH)' : ''} · ${fixture.roofed ? 'Covered roof' : 'Open air'}
+Roof: ${fixture.roofed ? 'COVERED (heat neutralised)' : 'OPEN AIR'} · Altitude: ${fixture.altitude}m${fixture.altitude > 1500 ? ' (HIGH — major impact)' : ''}
 
-${home.name.toUpperCase()}: FIFA #${home.fifaRank} · Power ${homeRank?.powerScore ?? 'N/A'} · Heat ${home.heat} · Altitude ${home.altitude} · Form: ${formHome} · ${homeRank?.points ?? 0}pts
-${away.name.toUpperCase()}: FIFA #${away.fifaRank} · Power ${awayRank?.powerScore ?? 'N/A'} · Heat ${away.heat} · Altitude ${away.altitude} · Form: ${formAway} · ${awayRank?.points ?? 0}pts
+VENUE-SPECIFIC CONDITION SCORES FOR THIS FIXTURE (1-100, scaled across all 48 teams):
+                    ${home.name.padEnd(20)} ${away.name}
+Heat & humidity:    ${String(hd.heat ?? home.heat).padEnd(20)} ${ad.heat ?? away.heat}${fixture.roofed ? ' [NEUTRALISED BY ROOF]' : ''}
+Pitch quality:      ${String(hd.pitch ?? home.pitch).padEnd(20)} ${ad.pitch ?? away.pitch}
+Altitude adapt:     ${String(hd.altitude ?? home.altitude).padEnd(20)} ${ad.altitude ?? away.altitude}
+Travel/jet lag:     ${String(hd.travel ?? home.travel).padEnd(20)} ${ad.travel ?? away.travel}
+Crowd pressure:     ${String(hd.crowd ?? home.crowd).padEnd(20)} ${ad.crowd ?? away.crowd}
+Schedule/fatigue:   ${String(hd.schedule ?? home.schedule).padEnd(20)} ${ad.schedule ?? away.schedule}
+Form:               ${String(hd.form ?? 50).padEnd(20)} ${ad.form ?? 50}
+Overall power:      ${String(homeRank?.powerScore ?? 'N/A').padEnd(20)} ${awayRank?.powerScore ?? 'N/A'}
 
-${prediction?.keyFactors?.length ? prediction.keyFactors.join(' · ') : ''}
+FIFA ranks: ${home.name} #${home.fifaRank} · ${away.name} #${away.fifaRank}
+Tournament form: ${home.name} [${formHome}] · ${away.name} [${formAway}]
+${prediction?.keyFactors?.length ? 'Key edges: ' + prediction.keyFactors.join(' | ') : ''}
 
-Write ONE paragraph covering: tactical matchup, venue conditions impact, key players, ${isPlayed ? 'what the result means for group qualification.' : 'predicted scoreline and best value bet (end with: "Not betting advice. Gamble responsibly.")'}
+Write ONE paragraph (180-200 words) that:
+1. Uses the condition scores above to explain the key tactical edges — reference the actual numbers
+2. Names 2-3 real players from each squad who are most relevant
+3. ${isPlayed ? 'Explains what the result means tactically and for group qualification' : 'Gives a specific scoreline prediction and identifies the best value bet (e.g. Asian handicap, both teams to score, total goals). End the bet suggestion with: "Not betting advice. Gamble responsibly."'}
 
-Under 200 words. Be specific. Name real players. Reference the data.`
+Be specific. Reference the actual scores. Write like The Athletic.`
 
   try {
     const msg = await claude.messages.create({
@@ -72,7 +87,7 @@ Under 200 words. Be specific. Name real players. Reference the data.`
     res.json({ analysis, cached: false })
   } catch (e) {
     console.error('Claude API error:', e.message)
-    res.status(500).json({ error: 'Analysis generation failed' })
+    res.status(500).json({ error: e.message || 'Analysis generation failed' })
   }
 })
 
