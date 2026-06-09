@@ -6,6 +6,7 @@ import HomePage      from './pages/HomePage'
 import GroupsPage    from './pages/GroupsPage'
 import RankingsPage  from './pages/RankingsPage'
 import FixturePage   from './pages/FixturePage'
+import PrivacyPage   from './pages/PrivacyPage'
 import MatchModal    from './components/MatchModal'
 
 import { api }                  from './lib/supabase'
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/groups"    element={<GroupsPage />} />
             <Route path="/rankings"  element={<RankingsPage />} />
             <Route path="/fixtures"  element={<FixturePage />} />
+            <Route path="/privacy"   element={<PrivacyPage />} />
           </Routes>
         </Layout>
         {activeMatch && (
@@ -130,7 +132,6 @@ function Layout({ children, darkMode, setDarkMode }) {
             {darkMode ? '☀' : '🌙'}
           </button>
 
-          {/* Desktop nav only */}
           {!isMobile && (
             <nav style={{ display:'flex', gap:2 }}>
               {nav.map(n => (
@@ -150,7 +151,17 @@ function Layout({ children, darkMode, setDarkMode }) {
         {children}
       </main>
 
-      {/* Mobile bottom nav only */}
+      <footer style={{
+        textAlign:'center', padding:'12px',
+        fontSize:11, color:'var(--txt3)',
+        borderTop:'0.5px solid var(--border)',
+        background:'var(--bg2)',
+      }}>
+        <Link to="/privacy" style={{ color:'var(--txt3)' }}>Privacy Policy</Link>
+        {' · '}
+        <span>© 2026 WC2026 Intelligence</span>
+      </footer>
+
       {isMobile && (
         <nav style={{
           display:'flex', borderTop:'0.5px solid var(--border)',
