@@ -1,7 +1,21 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Link }     from 'react-router-dom'
 import { useApp }   from '../App'
 import { FIXTURES } from '../lib/data'
+
+function AdBanner({ slot }) {
+  useEffect(() => {
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}) } catch {}
+  }, [])
+  return (
+    <ins className="adsbygoogle"
+      style={{ display:'block', width:'100%' }}
+      data-ad-client="ca-pub-4765456413213962"
+      data-ad-slot={slot}
+      data-ad-format="auto"
+      data-full-width-responsive="true"/>
+  )
+}
 
 export default function HomePage() {
   const { rankings, results, setActiveMatch, loading } = useApp()
@@ -35,13 +49,8 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div id="ad-home-top" style={{
-        minHeight:90, background:'var(--bg3)', borderRadius:'var(--r)',
-        border:'0.5px dashed var(--border)', display:'flex', alignItems:'center',
-        justifyContent:'center', fontSize:11, color:'var(--txt3)', letterSpacing:'.06em',
-      }}>
-        Advertisement
-      </div>
+      {/* Top ad */}
+      <AdBanner slot="7416715343" />
 
       <Section title="Power rankings" link="/rankings" linkLabel="See all 48">
         {loading
@@ -66,13 +75,9 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <div id="ad-home-bottom" style={{
-        minHeight:100, background:'var(--bg3)', borderRadius:'var(--r)',
-        border:'0.5px dashed var(--border)', display:'flex', alignItems:'center',
-        justifyContent:'center', fontSize:11, color:'var(--txt3)', letterSpacing:'.06em',
-      }}>
-        Advertisement
-      </div>
+      {/* Bottom ad */}
+      <AdBanner slot="8047270733" />
+
     </div>
   )
 }
