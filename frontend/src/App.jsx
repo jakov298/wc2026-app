@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
-import { Analytics } from '@vercel/analytics/react'
+import { Analytics }     from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import './styles/global.css'
 
 import HomePage      from './pages/HomePage'
@@ -86,6 +87,7 @@ export default function App() {
           <MatchModal fixtureId={activeMatch} onClose={() => setActiveMatch(null)} />
         )}
         <Analytics />
+        <SpeedInsights />
       </BrowserRouter>
     </AppCtx.Provider>
   )
