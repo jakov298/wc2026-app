@@ -37,6 +37,9 @@ export default function HomePage() {
     .sort((a, b) => new Date(b.played_at) - new Date(a.played_at))
     .slice(0, 4)
 
+  // Show ads only after AdSense approves — window.adsbygoogle will be defined
+  const adsReady = typeof window !== 'undefined' && window.adsbygoogle !== undefined
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
@@ -49,8 +52,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* Top ad */}
-      <AdBanner slot="7416715343" />
+      {adsReady && <AdBanner slot="7416715343" />}
 
       <Section title="Power rankings" link="/rankings" linkLabel="See all 48">
         {loading
@@ -75,8 +77,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      {/* Bottom ad */}
-      <AdBanner slot="8047270733" />
+      {adsReady && <AdBanner slot="8047270733" />}
 
     </div>
   )
