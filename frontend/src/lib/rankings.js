@@ -10,6 +10,49 @@ function distanceKm(c1, c2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
 }
 
+// Total travel km: homeCity → game1City → game2City → game3City, scaled 1-100
+// Min km = 100 (best), max km = 1 (worst). Computed once from the fixture schedule.
+function buildTravelScores() {
+  const rawKm = {}
+
+  TEAMS.forEach(team => {
+    const homeCity = TEAM_HOME_CITY[team.id]
+    const homeCoord = VENUE_COORDS[homeCity]
+    if (!homeCoord) { rawKm[team.id] = null; return }
+
+    const fixtures = FIXTURES
+      .filter(f => f.home === team.id || f.away === team.id)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+
+    if (fixtures.length < 3) { rawKm[team.id] = null; return }
+
+    const c1 = VENUE_COORDS[fixtures[0].city]
+    const c2 = VENUE_COORDS[fixtures[1].city]
+    const c3 = VENUE_COORDS[fixtures[2].city]
+    if (!c1 || !c2 || !c3) { rawKm[team.id] = null; return }
+
+    rawKm[team.id] = Math.round(
+      distanceKm(homeCoord, c1) + distanceKm(c1, c2) + distanceKm(c2, c3)
+    )
+  })
+
+  const validKm = Object.values(rawKm).filter(v => v !== null)
+  const minKm   = Math.min(...validKm)
+  const maxKm   = Math.max(...validKm)
+  const range   = maxKm - minKm || 1
+
+  const scores = {}
+  TEAMS.forEach(team => {
+    const km = rawKm[team.id]
+    scores[team.id] = km !== null
+      ? Math.round(1 + ((maxKm - km) / range) * 99)
+      : team.travel
+  })
+  return scores
+}
+
+const TRAVEL_SCORES = buildTravelScores()
+
 export function buildStandings(results) {
   const standings = {}
   TEAMS.forEach(t => {
@@ -53,24 +96,27 @@ function computeDynamicScores(results) {
     if (teamGames[r.away_team]) teamGames[r.away_team].push({ fixture, role: 'away', result: r })
   })
 
-  const standings = buildStandings(results)
-  const rawScores = {}
+  const standings  = buildStandings(results)
+  const rawScores  = {}
 
   TEAMS.forEach(team => {
-    const games = teamGames[team.id]
+    const games    = teamGames[team.id]
     const fifaScore = Math.round(100 - ((Math.min(Math.max(team.fifaRank, 1), 96) - 1) / 95) * 99)
 
     if (games.length === 0) {
       rawScores[team.id] = {
-        heat: team.heat, pitch: team.pitch, altitude: team.altitude,
-        travel: team.travel, crowd: team.crowd, schedule: team.schedule,
-        form: fifaScore,
+        heat:     team.heat,
+        pitch:    team.pitch,
+        altitude: team.altitude,
+        travel:   TRAVEL_SCORES[team.id],
+        crowd:    team.crowd,
+        schedule: team.schedule,
+        form:     fifaScore,
       }
       return
     }
 
-    const heatVals = [], pitchVals = [], altVals = []
-    const travelVals = [], crowdVals = [], schedVals = []
+    const heatVals = [], pitchVals = [], altVals = [], crowdVals = [], schedVals = []
     const sorted = [...games].sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
 
     sorted.forEach((g, i) => {
@@ -80,27 +126,6 @@ function computeDynamicScores(results) {
       altVals.push(f.altitude > 1500
         ? Math.min(100, team.altitude + 15)
         : Math.max(1, team.altitude - 5))
-
-      if (i === 0) {
-        const homeCity = TEAM_HOME_CITY[team.id]
-        const homeCoord = homeCity ? VENUE_COORDS[homeCity] : null
-        const venueCoord = VENUE_COORDS[f.city]
-        if (homeCoord && venueCoord) {
-          const km = distanceKm(homeCoord, venueCoord)
-          travelVals.push(Math.max(1, Math.round(100 - (km / 15000) * 99)))
-        } else {
-          travelVals.push(team.travel)
-        }
-      } else {
-        const prevCoord = VENUE_COORDS[sorted[i-1].fixture.city]
-        const currCoord = VENUE_COORDS[f.city]
-        if (prevCoord && currCoord) {
-          const km = distanceKm(prevCoord, currCoord)
-          travelVals.push(Math.max(1, Math.round(100 - (km / 5000) * 99)))
-        } else {
-          travelVals.push(team.travel)
-        }
-      }
 
       const isNearHost =
         (team.id === 'MEX' && ['Mexico City','Guadalajara','Monterrey'].includes(f.city)) ||
@@ -122,25 +147,25 @@ function computeDynamicScores(results) {
       }
     })
 
-    const avg = arr => Math.round(arr.reduce((s, v) => s + v, 0) / arr.length)
+    const avg   = arr => Math.round(arr.reduce((s, v) => s + v, 0) / arr.length)
     const blend = (base, dyn) => Math.round(base * 0.4 + dyn * 0.6)
 
     const s = standings[team.id]
     let formScore = fifaScore
     if (s.form.length > 0) {
-      const map = { W: 100, D: 50, L: 0 }
+      const map   = { W: 100, D: 50, L: 0 }
       const slice = s.form.slice(-3)
-      const num = slice.reduce((acc, r, i) => acc + (map[r] ?? 50) * (i + 1), 0)
-      const den = slice.reduce((acc, _, i) => acc + (i + 1), 0)
-      const w = Math.min(s.played / 3, 1)
-      formScore = Math.round(fifaScore * (1 - w) + Math.round(num / den) * w)
+      const num   = slice.reduce((acc, r, i) => acc + (map[r] ?? 50) * (i + 1), 0)
+      const den   = slice.reduce((acc, _, i) => acc + (i + 1), 0)
+      const w     = Math.min(s.played / 3, 1)
+      formScore   = Math.round(fifaScore * (1 - w) + Math.round(num / den) * w)
     }
 
     rawScores[team.id] = {
       heat:     blend(team.heat,     avg(heatVals)),
       pitch:    blend(team.pitch,    avg(pitchVals)),
       altitude: blend(team.altitude, avg(altVals)),
-      travel:   blend(team.travel,   avg(travelVals)),
+      travel:   TRAVEL_SCORES[team.id],   // fixed from schedule — total km home→g1→g2→g3
       crowd:    blend(team.crowd,    avg(crowdVals)),
       schedule: blend(team.schedule, avg(schedVals)),
       form:     formScore,
@@ -153,9 +178,9 @@ function computeDynamicScores(results) {
   TEAMS.forEach(t => { scaled[t.id] = {} })
 
   ALL_KEYS.forEach(key => {
-    const vals = TEAMS.map(t => rawScores[t.id]?.[key] ?? 50)
-    const min = Math.min(...vals)
-    const max = Math.max(...vals)
+    const vals  = TEAMS.map(t => rawScores[t.id]?.[key] ?? 50)
+    const min   = Math.min(...vals)
+    const max   = Math.max(...vals)
     const range = max - min || 1
     TEAMS.forEach((t, i) => {
       scaled[t.id][key] = Math.round(1 + ((vals[i] - min) / range) * 99)
@@ -168,8 +193,8 @@ function computeDynamicScores(results) {
 export function getConditionScore(teamId, dynamicScores, condWeights = null) {
   const scores = dynamicScores[teamId]
   if (!scores) return 50
-  const keys = [...CONDITIONS.map(c => c.key), 'form']
-  const w = condWeights || Object.fromEntries(keys.map(k => [k, 1]))
+  const keys   = [...CONDITIONS.map(c => c.key), 'form']
+  const w      = condWeights || Object.fromEntries(keys.map(k => [k, 1]))
   const totalW = keys.reduce((s, k) => s + (w[k] || 0), 0)
   if (totalW === 0) return 50
   return Math.round(keys.reduce((s, k) => s + (scores[k] || 50) * (w[k] || 0), 0) / totalW)
