@@ -2,9 +2,17 @@ import React, { useState, useMemo } from 'react'
 import { useApp }    from '../App'
 import { FIXTURES }  from '../lib/data'
 
+function toLocalTime(dateStr, timeStr) {
+  const dt = new Date(`${dateStr}T${timeStr}:00Z`)
+  const time = dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false })
+  const tz   = new Intl.DateTimeFormat([], { timeZoneName:'short' })
+    .formatToParts(dt).find(p => p.type === 'timeZoneName')?.value ?? ''
+  return `${time} ${tz}`
+}
+
 export default function FixturePage() {
   const { results, setActiveMatch, getTeam, rankings } = useApp()
-  const [filter,  setFilter]  = useState('all')   // all | played | upcoming
+  const [filter,  setFilter]  = useState('all')
   const [search,  setSearch]  = useState('')
   const [group,   setGroup]   = useState('all')
 
@@ -26,7 +34,6 @@ export default function FixturePage() {
 
   const scoreColor = v => v>=80?'var(--green)':v>=65?'var(--blue)':v>=50?'var(--orange)':'var(--red)'
 
-  // Group fixtures by date
   const byDate = filtered.reduce((acc, f) => {
     acc[f.date] = acc[f.date] || []
     acc[f.date].push(f)
@@ -37,7 +44,6 @@ export default function FixturePage() {
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
       <h1 style={{ fontSize:28 }}>Fixtures</h1>
 
-      {/* Filters */}
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
         <input
           type="text"
@@ -69,7 +75,6 @@ export default function FixturePage() {
         </select>
       </div>
 
-      {/* Fixtures by date */}
       {Object.entries(byDate).sort().map(([date, fixtures]) => (
         <div key={date}>
           <div style={{ fontSize:11, color:'var(--txt3)', fontWeight:600, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:8, paddingTop:4 }}>
@@ -106,7 +111,7 @@ export default function FixturePage() {
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize:12, color:'var(--txt2)', fontWeight:600 }}>{f.time}</div>
+                        <div style={{ fontSize:12, color:'var(--txt2)', fontWeight:600 }}>{toLocalTime(f.date, f.time)}</div>
                         <div style={{ fontSize:9, color:'var(--txt3)', marginTop:2 }}>{f.city}</div>
                       </>
                     )}
