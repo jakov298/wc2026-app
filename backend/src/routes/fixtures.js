@@ -8,7 +8,6 @@ const AF = axios.create({
   headers: { 'x-apisports-key': process.env.API_FOOTBALL_KEY },
 })
 
-// WC 2026 league ID on API-Football is 1 (FIFA World Cup)
 const WC_LEAGUE   = 1
 const WC_SEASON   = 2026
 
@@ -48,6 +47,18 @@ router.get('/results', async (req, res) => {
     res.json(data.response || [])
   } catch (e) {
     res.status(502).json({ error: 'API-Football unavailable' })
+  }
+})
+
+// TEMP — check what fixture fields the API returns
+router.get('/test-fields', async (req, res) => {
+  try {
+    const { data } = await AF.get('/fixtures', {
+      params: { league: WC_LEAGUE, season: WC_SEASON, from: '2026-06-11', to: '2026-06-13' },
+    })
+    res.json((data.response || []).slice(0, 3))
+  } catch (e) {
+    res.status(502).json({ error: e.message })
   }
 })
 
