@@ -4,11 +4,15 @@ import { FIXTURES }  from '../lib/data'
 
 function formatTime(dateStr, timeStr, tz) {
   const [h, m] = timeStr.split(':').map(Number)
-  if (tz === 'GMT') return `${timeStr} GMT`
-  const totalMins = h * 60 + m - 5 * 60
-  const adjH = ((Math.floor(totalMins / 60) % 24) + 24) % 24
-  const adjM = ((totalMins % 60) + 60) % 60
-  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} EST`
+  if (tz === 'EST') {
+    const period = h >= 12 ? 'PM' : 'AM'
+    const h12    = h % 12 || 12
+    return `${h12}:${String(m).padStart(2,'0')} ${period} EST`
+  }
+  const totalMins = h * 60 + m + 240
+  const adjH      = Math.floor(totalMins / 60) % 24
+  const adjM      = totalMins % 60
+  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} GMT`
 }
 
 export default function FixturePage() {
@@ -73,7 +77,6 @@ export default function FixturePage() {
           ))}
         </select>
 
-        {/* Timezone toggle */}
         <div style={{ display:'flex', gap:2, background:'var(--bg3)', borderRadius:20, padding:2, border:'0.5px solid var(--border)', marginLeft:'auto' }}>
           {['GMT','EST'].map(t => (
             <button key={t} onClick={() => switchTz(t)} style={{
