@@ -11,20 +11,22 @@ const AF = axios.create({
 const WC_LEAGUE = 1
 const WC_SEASON = 2026
 
-// Maps API team names → our internal IDs
 const TEAM_MAP = {
   'Mexico': 'MEX', 'South Africa': 'RSA', 'South Korea': 'KOR',
   'Czech Republic': 'CZE', 'Czechia': 'CZE',
   'Canada': 'CAN', 'Bosnia & Herzegovina': 'BIH', 'Bosnia': 'BIH',
   'Qatar': 'QAT', 'Switzerland': 'SUI',
   'Brazil': 'BRA', 'Morocco': 'MAR', 'Haiti': 'HAI', 'Scotland': 'SCO',
-  'United States': 'USA', 'Paraguay': 'PAR', 'Australia': 'AUS', 'Turkey': 'TUR',
+  'United States': 'USA', 'USA': 'USA',
+  'Paraguay': 'PAR', 'Australia': 'AUS',
+  'Turkey': 'TUR', 'Türkiye': 'TUR',
   'Germany': 'GER', 'Curacao': 'CUW', 'Curaçao': 'CUW',
-  'Ivory Coast': 'CIV', "Côte d'Ivoire": 'CIV', 'Cote d\'Ivoire': 'CIV',
+  'Ivory Coast': 'CIV', "Côte d'Ivoire": 'CIV',
   'Ecuador': 'ECU',
   'Netherlands': 'NED', 'Japan': 'JPN', 'Sweden': 'SWE', 'Tunisia': 'TUN',
   'Belgium': 'BEL', 'Egypt': 'EGY', 'Iran': 'IRN', 'New Zealand': 'NZL',
-  'Spain': 'ESP', 'Cape Verde': 'CPV', 'Cabo Verde': 'CPV',
+  'Spain': 'ESP',
+  'Cape Verde': 'CPV', 'Cabo Verde': 'CPV', 'Cape Verde Islands': 'CPV',
   'Saudi Arabia': 'KSA', 'Uruguay': 'URU',
   'France': 'FRA', 'Senegal': 'SEN', 'Iraq': 'IRQ', 'Norway': 'NOR',
   'Argentina': 'ARG', 'Algeria': 'ALG', 'Austria': 'AUT', 'Jordan': 'JOR',
@@ -33,7 +35,6 @@ const TEAM_MAP = {
   'England': 'ENG', 'Croatia': 'CRO', 'Ghana': 'GHA', 'Panama': 'PAN',
 }
 
-// Which group each team belongs to
 const TEAM_GROUP = {
   MEX:'A', RSA:'A', KOR:'A', CZE:'A',
   CAN:'B', BIH:'B', QAT:'B', SUI:'B',
@@ -49,7 +50,6 @@ const TEAM_GROUP = {
   ENG:'L', CRO:'L', GHA:'L', PAN:'L',
 }
 
-// Custom fields not available from API — keyed by venue name
 const VENUE_META = {
   'Estadio Azteca':         { roofed: false, altitude: 2240 },
   'Estadio Akron':          { roofed: false, altitude: 1566 },
@@ -71,13 +71,13 @@ const VENUE_META = {
   'Rose Bowl':              { roofed: false, altitude: 258  },
 }
 
-// City name overrides — API may return suburb names we don't use
 const CITY_OVERRIDE = {
-  'Pasadena':        'Los Angeles',
-  'East Rutherford': 'New York',
-  'Inglewood':       'Los Angeles',
-  'Foxborough':      'Boston',
-  'Glendale':        'Los Angeles',
+  'San Francisco Bay Area': 'Santa Clara',
+  'New York New Jersey':    'New York',
+  'Pasadena':               'Los Angeles',
+  'East Rutherford':        'New York',
+  'Inglewood':              'Los Angeles',
+  'Foxborough':             'Boston',
 }
 
 router.get('/live', async (req, res) => {
@@ -116,7 +116,7 @@ router.get('/results', async (req, res) => {
   }
 })
 
-// GET /api/fixtures/generate — builds the full FIXTURES array from live API data
+// GET /api/fixtures/generate — builds full FIXTURES array from live API data
 router.get('/generate', async (req, res) => {
   try {
     const { data } = await AF.get('/fixtures', {
@@ -128,7 +128,7 @@ router.get('/generate', async (req, res) => {
     )
 
     const unmapped = []
-    const byGroup = {}
+    const byGroup  = {}
 
     for (const f of raw) {
       const homeName = f.teams.home.name
@@ -142,17 +142,13 @@ router.get('/generate', async (req, res) => {
 
       const group = TEAM_GROUP[homeId]
       if (!group) continue
-
       if (!byGroup[group]) byGroup[group] = []
 
       const venueName = f.fixture.venue?.name || ''
       const apiCity   = f.fixture.venue?.city || ''
       const city      = CITY_OVERRIDE[apiCity] || apiCity
       const meta      = VENUE_META[venueName] || { roofed: false, altitude: 0 }
-
-      // Convert UTC date to local venue time (approximate — UTC offset by city)
-      const utcDate  = new Date(f.fixture.date)
-      const localStr = utcDate.toISOString()
+      const isoStr    = new Date(f.fixture.date).toISOString()
 
       byGroup[group].push({
         apiId:    f.fixture.id,
@@ -161,22 +157,21 @@ router.get('/generate', async (req, res) => {
         away:     awayId,
         venue:    venueName,
         city,
-        date:     localStr.split('T')[0],
-        timeUTC:  localStr.split('T')[1].slice(0,5),
+        date:     isoStr.split('T')[0],
+        timeUTC:  isoStr.split('T')[1].slice(0, 5),
         roofed:   meta.roofed,
         altitude: meta.altitude,
         _ts:      f.fixture.timestamp,
       })
     }
 
-    // Sort within each group by timestamp, assign IDs (A1-A6, B1-B6, ...)
-    const GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L']
+    const GROUPS   = ['A','B','C','D','E','F','G','H','I','J','K','L']
     const fixtures = []
     for (const g of GROUPS) {
-      const gFixtures = (byGroup[g] || []).sort((a, b) => a._ts - b._ts)
-      gFixtures.forEach((f, i) => {
-        const { _ts, timeUTC, ...rest } = f
-        fixtures.push({ id: `${g}${i+1}`, ...rest, timeUTC })
+      const sorted = (byGroup[g] || []).sort((a, b) => a._ts - b._ts)
+      sorted.forEach((f, i) => {
+        const { _ts, ...rest } = f
+        fixtures.push({ id: `${g}${i + 1}`, ...rest })
       })
     }
 
