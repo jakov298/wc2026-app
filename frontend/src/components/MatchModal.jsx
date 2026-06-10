@@ -16,12 +16,13 @@ const ALL_ATTRS = [
   { key:'form',     label:'Form',             icon:'📈' },
 ]
 
-function toLocalTime(dateStr, timeStr) {
-  const dt = new Date(`${dateStr}T${timeStr}:00Z`)
-  const time = dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false })
-  const tz   = new Intl.DateTimeFormat([], { timeZoneName:'short' })
-    .formatToParts(dt).find(p => p.type === 'timeZoneName')?.value ?? ''
-  return `${time} ${tz}`
+function formatTime(dateStr, timeStr, tz) {
+  const [h, m] = timeStr.split(':').map(Number)
+  if (tz === 'GMT') return `${timeStr} GMT`
+  const totalMins = h * 60 + m - 5 * 60
+  const adjH = ((Math.floor(totalMins / 60) % 24) + 24) % 24
+  const adjM = ((totalMins % 60) + 60) % 60
+  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} EST`
 }
 
 // ─── Fixture-specific helpers ─────────────────────────────────────────────────
@@ -87,7 +88,7 @@ function getVenueCrowd(team, city) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MatchModal({ fixtureId, onClose }) {
-  const { getFixture, getTeam, getRanking, results, condWeights } = useApp()
+  const { getFixture, getTeam, getRanking, results, condWeights, tz, switchTz } = useApp()
 
   const fixture  = getFixture(fixtureId)
   const homeTeam = getTeam(fixture?.home)
@@ -176,10 +177,21 @@ export default function MatchModal({ fixtureId, onClose }) {
                     {existingResult.home_score}–{existingResult.away_score}
                   </div>
                 ) : (
-                  <div style={{ color:'var(--txt3)', fontSize:13, fontWeight:600 }}>vs</div>
+                  <>
+                    <div style={{ color:'var(--txt2)', fontSize:14, fontWeight:700 }}>{formatTime(fixture.date, fixture.time, tz)}</div>
+                    <div style={{ display:'flex', gap:2, justifyContent:'center', marginTop:5, background:'var(--bg3)', borderRadius:20, padding:2, border:'0.5px solid var(--border)' }}>
+                      {['GMT','EST'].map(t => (
+                        <button key={t} onClick={() => switchTz(t)} style={{
+                          padding:'2px 8px', borderRadius:18, fontSize:9, fontWeight:700,
+                          background: tz === t ? 'var(--accent)' : 'transparent',
+                          color:      tz === t ? '#000' : 'var(--txt3)',
+                        }}>{t}</button>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {!played && prediction && (
-                  <div style={{ marginTop:4, fontSize:10, color:'var(--txt3)' }}>
+                  <div style={{ marginTop:6, fontSize:10, color:'var(--txt3)' }}>
                     <span style={{ color:'var(--blue)' }}>{prediction.homeWin}%</span>
                     {' / '}
                     <span>{prediction.draw}%</span>
@@ -206,7 +218,7 @@ export default function MatchModal({ fixtureId, onClose }) {
           </div>
 
           <div style={{ padding:16 }}>
-            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} onAnalysis={handleAnalysisClick} />}
+            {activeTab === 'preview'    && <PreviewTab fixture={fixture} homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} prediction={prediction} played={played} existingResult={existingResult} scoreColor={scoreColor} onAnalysis={handleAnalysisClick} tz={tz} />}
             {activeTab === 'conditions' && <ConditionsTab homeTeam={homeTeam} awayTeam={awayTeam} homeRank={homeRank} awayRank={awayRank} fixture={fixture} scoreColor={scoreColor} />}
             {activeTab === 'analysis'   && <AnalysisTab analysis={analysis} isLoading={isLoading} homeTeam={homeTeam} awayTeam={awayTeam} />}
           </div>
@@ -238,7 +250,7 @@ function TeamBlock({ team, rank, side, played, existingResult }) {
   )
 }
 
-function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor, onAnalysis }) {
+function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor, onAnalysis, tz }) {
   const heatVal = calcFixtureHeat(fixture)
   const pitch   = VENUE_PITCH[fixture.venue] ?? 70
 
@@ -293,7 +305,7 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
         {[
           { label:'Venue',      value: fixture.venue },
           { label:'City',       value: fixture.city },
-          { label:'Kickoff',    value: toLocalTime(fixture.date, fixture.time) },
+          { label:'Kickoff',    value: formatTime(fixture.date, fixture.time, tz) },
           { label:'Roof',       value: fixture.roofed ? 'Covered ✓' : 'Open air' },
           { label:'Altitude',   value: `${fixture.altitude}m${fixture.altitude > 1500 ? ' ⚠ High' : ''}` },
           { label:'Heat index', value: `${heatVal}/100 — ${heatLabel(heatVal, fixture.roofed)}` },
@@ -326,14 +338,14 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
 }
 
 function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreColor }) {
-  const hScores  = homeRank?.dynamicScores
-  const aScores  = awayRank?.dynamicScores
-  const heatVal  = calcFixtureHeat(fixture)
-  const pitch    = VENUE_PITCH[fixture.venue] ?? 70
-  const hRest    = getDaysRest(homeTeam.id, fixture.date)
-  const aRest    = getDaysRest(awayTeam.id, fixture.date)
-  const hCrowd   = getVenueCrowd(homeTeam, fixture.city)
-  const aCrowd   = getVenueCrowd(awayTeam, fixture.city)
+  const hScores = homeRank?.dynamicScores
+  const aScores = awayRank?.dynamicScores
+  const heatVal = calcFixtureHeat(fixture)
+  const pitch   = VENUE_PITCH[fixture.venue] ?? 70
+  const hRest   = getDaysRest(homeTeam.id, fixture.date)
+  const aRest   = getDaysRest(awayTeam.id, fixture.date)
+  const hCrowd  = getVenueCrowd(homeTeam, fixture.city)
+  const aCrowd  = getVenueCrowd(awayTeam, fixture.city)
 
   const restLabel = d => d === null ? 'First game' : d === 1 ? '1 day rest' : `${d} days rest`
 
@@ -345,10 +357,10 @@ function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreC
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {[
-            { label:'Heat index', val: heatVal,         color: scoreColor(heatVal),                                          sub: heatLabel(heatVal, fixture.roofed) },
-            { label:'Altitude',  val: `${fixture.altitude}m`, color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)', sub: altLabel(fixture.altitude) },
-            { label:'Pitch',     val: pitch,             color: scoreColor(pitch),                                            sub: pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average' },
-            { label:'Roof',      val: fixture.roofed ? '✓' : '—', color: fixture.roofed ? 'var(--blue)' : 'var(--txt)',      sub: fixture.roofed ? 'Climate-controlled' : 'Open air' },
+            { label:'Heat index', val: heatVal,                   color: scoreColor(heatVal),                                            sub: heatLabel(heatVal, fixture.roofed) },
+            { label:'Altitude',   val: `${fixture.altitude}m`,    color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)',       sub: altLabel(fixture.altitude) },
+            { label:'Pitch',      val: pitch,                     color: scoreColor(pitch),                                              sub: pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average' },
+            { label:'Roof',       val: fixture.roofed ? '✓' : '—', color: fixture.roofed ? 'var(--blue)' : 'var(--txt)',                sub: fixture.roofed ? 'Climate-controlled' : 'Open air' },
           ].map(({ label, val, color, sub }) => (
             <div key={label}>
               <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
