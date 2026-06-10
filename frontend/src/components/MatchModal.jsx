@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useApp }       from '../App'
 import { supabase }     from '../lib/supabase'
 import { predictMatch } from '../lib/rankings'
+import { FIXTURES, VENUE_PITCH } from '../lib/data'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 
@@ -14,6 +15,69 @@ const ALL_ATTRS = [
   { key:'schedule', label:'Fixture load',     icon:'📅' },
   { key:'form',     label:'Form',             icon:'📈' },
 ]
+
+// ─── Fixture-specific helpers ─────────────────────────────────────────────────
+
+const CITY_HEAT = {
+  'Mexico City':64,'Guadalajara':76,'Monterrey':90,'Dallas':90,'Atlanta':74,
+  'Miami':96,'Los Angeles':52,'Seattle':38,'Santa Clara':46,'New York':63,
+  'Boston':54,'Philadelphia':70,'Kansas City':83,'Toronto':53,'Vancouver':42,'Houston':96,
+}
+
+function calcFixtureHeat(fixture) {
+  if (fixture.roofed) return 50
+  const base = CITY_HEAT[fixture.city] ?? 60
+  const day  = parseInt(fixture.date.split('-')[2])
+  const adj  = day <= 14 ? -3 : day >= 21 ? 4 : 0
+  return Math.min(100, Math.max(1, base + adj))
+}
+
+function heatLabel(v, roofed) {
+  if (roofed) return 'Climate-controlled'
+  if (v >= 93) return 'Extreme heat'
+  if (v >= 83) return 'Very hot'
+  if (v >= 70) return 'Hot & humid'
+  if (v >= 58) return 'Warm'
+  if (v >= 45) return 'Mild'
+  return 'Cool'
+}
+
+function altLabel(m) {
+  if (m >= 2000) return 'Extreme altitude'
+  if (m >= 1200) return 'High altitude'
+  if (m >= 500)  return 'Moderate altitude'
+  return 'Sea level'
+}
+
+// Days of rest before this fixture for a given team
+function getDaysRest(teamId, fixtureDateStr) {
+  const prev = FIXTURES
+    .filter(f => (f.home === teamId || f.away === teamId) && f.date < fixtureDateStr)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+  if (!prev.length) return null
+  return Math.round((new Date(fixtureDateStr) - new Date(prev[0].date)) / 86400000)
+}
+
+const CROWD_CITY_BOOST = {
+  MEX: { 'Mexico City':35,'Guadalajara':35,'Monterrey':35,'Dallas':22,'Houston':22,'Los Angeles':20,'Kansas City':14,'New York':10,'Philadelphia':8,'Atlanta':8,'Miami':8,'Santa Clara':8,'Boston':5,'Seattle':4,'Toronto':2,'Vancouver':2 },
+  USA: { 'Dallas':28,'Atlanta':28,'Miami':28,'Los Angeles':28,'Seattle':28,'Santa Clara':28,'New York':28,'Boston':28,'Philadelphia':28,'Kansas City':28,'Houston':28 },
+  CAN: { 'Toronto':32,'Vancouver':32,'Seattle':14,'Boston':9,'New York':6 },
+  BRA: { 'Miami':14,'New York':9,'Boston':5,'Houston':5,'Los Angeles':4 },
+  ARG: { 'Miami':12,'New York':9,'Los Angeles':5,'Houston':4 },
+  COL: { 'Miami':14,'New York':9,'Houston':9,'Los Angeles':6 },
+  PAN: { 'Miami':10,'New York':9,'Houston':6 },
+  HAI: { 'Miami':14,'New York':9,'Boston':6 },
+  ECU: { 'New York':9,'Miami':6,'Houston':6 },
+  POR: { 'Boston':9,'New York':6 },
+  CUW: { 'Miami':9 },
+}
+
+function getVenueCrowd(team, city) {
+  const boost = (CROWD_CITY_BOOST[team.id] ?? {})[city] ?? 0
+  return Math.min(100, team.crowd + boost)
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MatchModal({ fixtureId, onClose }) {
   const { getFixture, getTeam, getRanking, results, condWeights } = useApp()
@@ -33,7 +97,6 @@ export default function MatchModal({ fixtureId, onClose }) {
   const existingResult = results.find(r => r.fixture_id === fixtureId)
   const played = existingResult && existingResult.home_score !== null
 
-  // Load cached analysis silently on open
   useEffect(() => {
     if (!fixture || !homeTeam || !awayTeam) return
     const pred = predictMatch(fixture.home, fixture.away, fixture, results, condWeights)
@@ -46,30 +109,19 @@ export default function MatchModal({ fixtureId, onClose }) {
   const handleAnalysisClick = async () => {
     if (analyzing || fakeLoading) return
     setActiveTab('analysis')
-
-    // If already cached, show fake loading for 1.5s then reveal
     if (analysis) {
       setFakeLoading(true)
       const cached = analysis
       setAnalysis(null)
-      setTimeout(() => {
-        setAnalysis(cached)
-        setFakeLoading(false)
-      }, 1500)
+      setTimeout(() => { setAnalysis(cached); setFakeLoading(false) }, 1500)
       return
     }
-
-    // Not cached yet — generate for real
     setAnalyzing(true)
     try {
       const res = await fetch(`${API}/analysis/${fixtureId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          home: homeTeam, away: awayTeam,
-          homeRank, awayRank, fixture,
-          prediction, existingResult,
-        }),
+        body: JSON.stringify({ home: homeTeam, away: awayTeam, homeRank, awayRank, fixture, prediction, existingResult }),
       })
       const data = await res.json()
       if (res.ok) setAnalysis(data.analysis)
@@ -88,15 +140,8 @@ export default function MatchModal({ fixtureId, onClose }) {
 
   return (
     <>
-      <div onClick={onClose} style={{
-        position:'fixed', inset:0, background:'rgba(0,0,0,.75)',
-        zIndex:200, backdropFilter:'blur(3px)',
-      }}/>
-      <div style={{
-        position:'fixed', inset:'0 0 0 0', display:'flex',
-        alignItems:'flex-end', justifyContent:'center',
-        zIndex:201, pointerEvents:'none',
-      }}>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.75)', zIndex:200, backdropFilter:'blur(3px)' }}/>
+      <div style={{ position:'fixed', inset:'0 0 0 0', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:201, pointerEvents:'none' }}>
         <div style={{
           width:'100%', maxWidth:640, maxHeight:'92dvh',
           background:'var(--bg2)', borderRadius:'16px 16px 0 0',
@@ -187,6 +232,9 @@ function TeamBlock({ team, rank, side, played, existingResult }) {
 }
 
 function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, prediction, played, existingResult, scoreColor, onAnalysis }) {
+  const heatVal = calcFixtureHeat(fixture)
+  const pitch   = VENUE_PITCH[fixture.venue] ?? 70
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       {prediction && !played && (
@@ -218,8 +266,8 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
         <div className="card" style={{ padding:14 }}>
           <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>Power index</div>
           {[
-            { label:'Power', h: homeRank.powerScore,    a: awayRank.powerScore    },
-            { label:'Cond',  h: homeRank.conditionScore,a: awayRank.conditionScore},
+            { label:'Power', h: homeRank.powerScore,     a: awayRank.powerScore     },
+            { label:'Cond',  h: homeRank.conditionScore, a: awayRank.conditionScore },
           ].map(row => (
             <div key={row.label} style={{ display:'grid', gridTemplateColumns:'1fr 32px 1fr', gap:6, alignItems:'center', marginBottom:8 }}>
               <div className="bar-track" style={{ direction:'rtl' }}><div className="bar-fill" style={{ width:`${row.h}%`, background:'var(--blue)' }}/></div>
@@ -234,12 +282,16 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
         </div>
       )}
 
+      {/* Venue details with fixture-specific heat + kickoff */}
       <div className="card" style={{ padding:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
         {[
-          { label:'Venue',    value: fixture.venue },
-          { label:'City',     value: fixture.city },
-          { label:'Altitude', value: `${fixture.altitude}m ${fixture.altitude > 1500 ? '⚠ High' : ''}` },
-          { label:'Roof',     value: fixture.roofed ? 'Covered ✓' : 'Open air' },
+          { label:'Venue',      value: fixture.venue },
+          { label:'City',       value: fixture.city },
+          { label:'Kickoff',    value: fixture.time + ' local' },
+          { label:'Roof',       value: fixture.roofed ? 'Covered ✓' : 'Open air' },
+          { label:'Altitude',   value: `${fixture.altitude}m${fixture.altitude > 1500 ? ' ⚠ High' : ''}` },
+          { label:'Heat index', value: `${heatVal}/100 — ${heatLabel(heatVal, fixture.roofed)}` },
+          { label:'Pitch',      value: `${pitch}/100 quality` },
         ].map(({ label, value }) => (
           <div key={label}>
             <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
@@ -268,24 +320,97 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
 }
 
 function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreColor }) {
-  const hScores = homeRank?.dynamicScores
-  const aScores = awayRank?.dynamicScores
+  const hScores  = homeRank?.dynamicScores
+  const aScores  = awayRank?.dynamicScores
+  const heatVal  = calcFixtureHeat(fixture)
+  const pitch    = VENUE_PITCH[fixture.venue] ?? 70
+  const hRest    = getDaysRest(homeTeam.id, fixture.date)
+  const aRest    = getDaysRest(awayTeam.id, fixture.date)
+  const hCrowd   = getVenueCrowd(homeTeam, fixture.city)
+  const aCrowd   = getVenueCrowd(awayTeam, fixture.city)
+
+  const restLabel = d => d === null ? 'First game' : d === 1 ? '1 day rest' : `${d} days rest`
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      <div style={{ fontSize:11, color:'var(--txt3)', lineHeight:1.6 }}>
-        Venue: <strong style={{ color:'var(--txt)' }}>{fixture.venue}, {fixture.city}</strong>
-        {fixture.roofed && ' · Covered roof — heat & humidity neutralised'}
-        {fixture.altitude > 1500 && ` · ${fixture.altitude}m — major stamina impact`}
+
+      {/* Fixture-specific venue stats */}
+      <div className="card" style={{ padding:12 }}>
+        <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>
+          Match conditions — {fixture.venue}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div>
+            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Heat index</div>
+            <div style={{ fontSize:18, fontWeight:800, color: scoreColor(heatVal) }}>{heatVal}</div>
+            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{heatLabel(heatVal, fixture.roofed)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Altitude</div>
+            <div style={{ fontSize:18, fontWeight:800, color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)' }}>{fixture.altitude}m</div>
+            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{altLabel(fixture.altitude)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Pitch quality</div>
+            <div style={{ fontSize:18, fontWeight:800, color: scoreColor(pitch) }}>{pitch}</div>
+            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average'}</div>
+          </div>
+          <div>
+            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Roof</div>
+            <div style={{ fontSize:18, fontWeight:800, color: fixture.roofed ? 'var(--blue)' : 'var(--txt)' }}>{fixture.roofed ? '✓' : '—'}</div>
+            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{fixture.roofed ? 'Climate-controlled' : 'Open air'}</div>
+          </div>
+        </div>
       </div>
+
+      {/* Team rest days */}
+      {(hRest !== null || aRest !== null) && (
+        <div className="card" style={{ padding:12 }}>
+          <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>
+            Days of rest before this game
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            {[
+              { team: homeTeam, rest: hRest },
+              { team: awayTeam, rest: aRest },
+            ].map(({ team, rest }) => {
+              const color = rest === null ? 'var(--txt3)'
+                          : rest <= 4 ? 'var(--red)'
+                          : rest <= 5 ? 'var(--orange)'
+                          : 'var(--green)'
+              return (
+                <div key={team.id}>
+                  <div style={{ fontSize:10, color:'var(--txt3)', marginBottom:4 }}>{team.flag} {team.name}</div>
+                  <div style={{ fontSize:22, fontWeight:800, color }}>{rest ?? '—'}</div>
+                  <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{restLabel(rest)}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Per-attribute condition bars */}
       {ALL_ATTRS.map(cond => {
-        const hv = hScores?.[cond.key] ?? homeTeam[cond.key] ?? 50
-        const av = aScores?.[cond.key] ?? awayTeam[cond.key] ?? 50
-        const edge = hv > av + 10 ? homeTeam.name : av > hv + 10 ? awayTeam.name : null
+        let hv = hScores?.[cond.key] ?? homeTeam[cond.key] ?? 50
+        let av = aScores?.[cond.key] ?? awayTeam[cond.key] ?? 50
+
+        // Override with fixture-specific values where available
+        if (cond.key === 'crowd') { hv = hCrowd; av = aCrowd }
+
+        const edge        = hv > av + 10 ? homeTeam.name : av > hv + 10 ? awayTeam.name : null
         const neutralised = cond.key === 'heat' && fixture.roofed
-        const note = cond.key === 'heat' && fixture.roofed ? '(neutralised by roof)'
-                   : cond.key === 'altitude' ? `(${fixture.altitude}m${fixture.altitude > 1500 ? ' — high impact' : ''})`
-                   : null
+
+        const note = cond.key === 'heat'
+          ? (fixture.roofed ? '(climate-controlled)' : `(index: ${heatVal})`)
+          : cond.key === 'altitude'
+          ? `(${fixture.altitude}m${fixture.altitude > 1500 ? ' — high impact' : ''})`
+          : cond.key === 'schedule' && (hRest !== null || aRest !== null)
+          ? `(${restLabel(hRest)} / ${restLabel(aRest)})`
+          : cond.key === 'crowd'
+          ? `(${fixture.city} support)`
+          : null
+
         return (
           <div key={cond.key} className="card" style={{ padding:12, opacity: neutralised ? .5 : 1 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
