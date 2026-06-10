@@ -2,28 +2,28 @@ import React, { useState, useMemo } from 'react'
 import { useApp }    from '../App'
 import { FIXTURES }  from '../lib/data'
 
-function toLocalTime(dateStr, timeStr) {
-  const dt = new Date(`${dateStr}T${timeStr}:00Z`)
-  const time = dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false })
-  const tz   = new Intl.DateTimeFormat([], { timeZoneName:'short' })
-    .formatToParts(dt).find(p => p.type === 'timeZoneName')?.value ?? ''
-  return `${time} ${tz}`
+function formatTime(dateStr, timeStr, tz) {
+  const [h, m] = timeStr.split(':').map(Number)
+  if (tz === 'GMT') return `${timeStr} GMT`
+  const totalMins = h * 60 + m - 5 * 60
+  const adjH = ((Math.floor(totalMins / 60) % 24) + 24) % 24
+  const adjM = ((totalMins % 60) + 60) % 60
+  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} EST`
 }
 
 export default function FixturePage() {
-  const { results, setActiveMatch, getTeam, rankings } = useApp()
-  const [filter,  setFilter]  = useState('all')
-  const [search,  setSearch]  = useState('')
-  const [group,   setGroup]   = useState('all')
+  const { results, setActiveMatch, getTeam, rankings, tz, switchTz } = useApp()
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [group,  setGroup]  = useState('all')
 
   const filtered = useMemo(() => {
     return FIXTURES.filter(f => {
-      const r       = results.find(x => x.fixture_id === f.id && x.home_score !== null)
-      const played  = !!r
-      const home    = getTeam(f.home)
-      const away    = getTeam(f.away)
-      const q       = search.toLowerCase()
-
+      const r      = results.find(x => x.fixture_id === f.id && x.home_score !== null)
+      const played = !!r
+      const home   = getTeam(f.home)
+      const away   = getTeam(f.away)
+      const q      = search.toLowerCase()
       if (filter === 'played'   && !played) return false
       if (filter === 'upcoming' && played)  return false
       if (group  !== 'all'      && f.group !== group) return false
@@ -49,30 +49,41 @@ export default function FixturePage() {
           type="text"
           placeholder="Search team…"
           value={search}
-          onChange={e=>setSearch(e.target.value)}
+          onChange={e => setSearch(e.target.value)}
           style={{
             padding:'6px 10px', background:'var(--bg3)', border:'0.5px solid var(--border2)',
-            borderRadius:'var(--r)', fontSize:12, color:'var(--txt)',
-            outline:'none', minWidth:140,
+            borderRadius:'var(--r)', fontSize:12, color:'var(--txt)', outline:'none', minWidth:140,
           }}
         />
-        {['all','upcoming','played'].map(f=>(
-          <button key={f} onClick={()=>setFilter(f)} style={{
+        {['all','upcoming','played'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
             padding:'5px 11px', borderRadius:20, fontSize:11, fontWeight:600, letterSpacing:'.04em',
-            background: filter===f?'var(--accent)':'var(--bg3)',
-            color:      filter===f?'#000':'var(--txt3)',
-            border:'0.5px solid '+(filter===f?'var(--accent)':'var(--border)'),
+            background: filter===f ? 'var(--accent)' : 'var(--bg3)',
+            color:      filter===f ? '#000' : 'var(--txt3)',
+            border: '0.5px solid '+(filter===f ? 'var(--accent)' : 'var(--border)'),
           }}>{f.charAt(0).toUpperCase()+f.slice(1)}</button>
         ))}
-        <select value={group} onChange={e=>setGroup(e.target.value)} style={{
+        <select value={group} onChange={e => setGroup(e.target.value)} style={{
           padding:'5px 10px', background:'var(--bg3)', border:'0.5px solid var(--border2)',
           borderRadius:'var(--r)', fontSize:11, color:'var(--txt2)',
         }}>
           <option value="all">All groups</option>
-          {'ABCDEFGHIJKL'.split('').map(g=>(
+          {'ABCDEFGHIJKL'.split('').map(g => (
             <option key={g} value={g}>Group {g}</option>
           ))}
         </select>
+
+        {/* Timezone toggle */}
+        <div style={{ display:'flex', gap:2, background:'var(--bg3)', borderRadius:20, padding:2, border:'0.5px solid var(--border)', marginLeft:'auto' }}>
+          {['GMT','EST'].map(t => (
+            <button key={t} onClick={() => switchTz(t)} style={{
+              padding:'4px 12px', borderRadius:18, fontSize:11, fontWeight:700,
+              background: tz === t ? 'var(--accent)' : 'transparent',
+              color:      tz === t ? '#000' : 'var(--txt3)',
+              transition: 'background .15s',
+            }}>{t}</button>
+          ))}
+        </div>
       </div>
 
       {Object.entries(byDate).sort().map(([date, fixtures]) => (
@@ -88,18 +99,17 @@ export default function FixturePage() {
               const homeRk = rankings.find(x => x.id === f.home)
               const awayRk = rankings.find(x => x.id === f.away)
               if (!home || !away) return null
-
               const winner = r ? (r.home_score > r.away_score ? 'home' : r.away_score > r.home_score ? 'away' : 'draw') : null
 
               return (
-                <button key={f.id} onClick={()=>setActiveMatch(f.id)} className="card fade-up" style={{
+                <button key={f.id} onClick={() => setActiveMatch(f.id)} className="card fade-up" style={{
                   display:'grid', gridTemplateColumns:'1fr 80px 1fr',
                   gap:8, padding:'12px 14px', width:'100%', textAlign:'left', alignItems:'center',
                 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <span style={{ fontSize:22 }}>{home.flag}</span>
                     <div>
-                      <div style={{ fontSize:13, fontWeight:600, color: winner==='home'?'var(--accent)':'var(--txt)' }}>{home.name}</div>
+                      <div style={{ fontSize:13, fontWeight:600, color: winner==='home' ? 'var(--accent)' : 'var(--txt)' }}>{home.name}</div>
                       {homeRk && <div style={{ fontSize:10, color: scoreColor(homeRk.powerScore) }}>⚡ {homeRk.powerScore}</div>}
                     </div>
                   </div>
@@ -111,18 +121,18 @@ export default function FixturePage() {
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize:12, color:'var(--txt2)', fontWeight:600 }}>{toLocalTime(f.date, f.time)}</div>
+                        <div style={{ fontSize:12, color:'var(--txt2)', fontWeight:600 }}>{formatTime(f.date, f.time, tz)}</div>
                         <div style={{ fontSize:9, color:'var(--txt3)', marginTop:2 }}>{f.city}</div>
                       </>
                     )}
                     <div style={{ fontSize:8, color:'var(--txt3)', marginTop:2 }}>
-                      {f.roofed?'🏟':'🌤'} Grp {f.group}
+                      {f.roofed ? '🏟' : '🌤'} Grp {f.group}
                     </div>
                   </div>
 
                   <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'flex-end' }}>
                     <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:13, fontWeight:600, color: winner==='away'?'var(--accent)':'var(--txt)' }}>{away.name}</div>
+                      <div style={{ fontSize:13, fontWeight:600, color: winner==='away' ? 'var(--accent)' : 'var(--txt)' }}>{away.name}</div>
                       {awayRk && <div style={{ fontSize:10, color: scoreColor(awayRk.powerScore) }}>⚡ {awayRk.powerScore}</div>}
                     </div>
                     <span style={{ fontSize:22 }}>{away.flag}</span>
