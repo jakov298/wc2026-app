@@ -16,6 +16,14 @@ const ALL_ATTRS = [
   { key:'form',     label:'Form',             icon:'📈' },
 ]
 
+function toLocalTime(dateStr, timeStr) {
+  const dt = new Date(`${dateStr}T${timeStr}:00Z`)
+  const time = dt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12:false })
+  const tz   = new Intl.DateTimeFormat([], { timeZoneName:'short' })
+    .formatToParts(dt).find(p => p.type === 'timeZoneName')?.value ?? ''
+  return `${time} ${tz}`
+}
+
 // ─── Fixture-specific helpers ─────────────────────────────────────────────────
 
 const CITY_HEAT = {
@@ -49,7 +57,6 @@ function altLabel(m) {
   return 'Sea level'
 }
 
-// Days of rest before this fixture for a given team
 function getDaysRest(teamId, fixtureDateStr) {
   const prev = FIXTURES
     .filter(f => (f.home === teamId || f.away === teamId) && f.date < fixtureDateStr)
@@ -282,12 +289,11 @@ function PreviewTab({ fixture, homeTeam, awayTeam, homeRank, awayRank, predictio
         </div>
       )}
 
-      {/* Venue details with fixture-specific heat + kickoff */}
       <div className="card" style={{ padding:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
         {[
           { label:'Venue',      value: fixture.venue },
           { label:'City',       value: fixture.city },
-          { label:'Kickoff',    value: fixture.time + ' local' },
+          { label:'Kickoff',    value: toLocalTime(fixture.date, fixture.time) },
           { label:'Roof',       value: fixture.roofed ? 'Covered ✓' : 'Open air' },
           { label:'Altitude',   value: `${fixture.altitude}m${fixture.altitude > 1500 ? ' ⚠ High' : ''}` },
           { label:'Heat index', value: `${heatVal}/100 — ${heatLabel(heatVal, fixture.roofed)}` },
@@ -333,51 +339,34 @@ function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreC
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-
-      {/* Fixture-specific venue stats */}
       <div className="card" style={{ padding:12 }}>
         <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>
           Match conditions — {fixture.venue}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <div>
-            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Heat index</div>
-            <div style={{ fontSize:18, fontWeight:800, color: scoreColor(heatVal) }}>{heatVal}</div>
-            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{heatLabel(heatVal, fixture.roofed)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Altitude</div>
-            <div style={{ fontSize:18, fontWeight:800, color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)' }}>{fixture.altitude}m</div>
-            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{altLabel(fixture.altitude)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Pitch quality</div>
-            <div style={{ fontSize:18, fontWeight:800, color: scoreColor(pitch) }}>{pitch}</div>
-            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>Roof</div>
-            <div style={{ fontSize:18, fontWeight:800, color: fixture.roofed ? 'var(--blue)' : 'var(--txt)' }}>{fixture.roofed ? '✓' : '—'}</div>
-            <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{fixture.roofed ? 'Climate-controlled' : 'Open air'}</div>
-          </div>
+          {[
+            { label:'Heat index', val: heatVal,         color: scoreColor(heatVal),                                          sub: heatLabel(heatVal, fixture.roofed) },
+            { label:'Altitude',  val: `${fixture.altitude}m`, color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)', sub: altLabel(fixture.altitude) },
+            { label:'Pitch',     val: pitch,             color: scoreColor(pitch),                                            sub: pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average' },
+            { label:'Roof',      val: fixture.roofed ? '✓' : '—', color: fixture.roofed ? 'var(--blue)' : 'var(--txt)',      sub: fixture.roofed ? 'Climate-controlled' : 'Open air' },
+          ].map(({ label, val, color, sub }) => (
+            <div key={label}>
+              <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
+              <div style={{ fontSize:18, fontWeight:800, color }}>{val}</div>
+              <div style={{ fontSize:10, color:'var(--txt3)', marginTop:1 }}>{sub}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Team rest days */}
       {(hRest !== null || aRest !== null) && (
         <div className="card" style={{ padding:12 }}>
           <div style={{ fontSize:10, color:'var(--txt3)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:10 }}>
             Days of rest before this game
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            {[
-              { team: homeTeam, rest: hRest },
-              { team: awayTeam, rest: aRest },
-            ].map(({ team, rest }) => {
-              const color = rest === null ? 'var(--txt3)'
-                          : rest <= 4 ? 'var(--red)'
-                          : rest <= 5 ? 'var(--orange)'
-                          : 'var(--green)'
+            {[{ team: homeTeam, rest: hRest }, { team: awayTeam, rest: aRest }].map(({ team, rest }) => {
+              const color = rest === null ? 'var(--txt3)' : rest <= 4 ? 'var(--red)' : rest <= 5 ? 'var(--orange)' : 'var(--green)'
               return (
                 <div key={team.id}>
                   <div style={{ fontSize:10, color:'var(--txt3)', marginBottom:4 }}>{team.flag} {team.name}</div>
@@ -390,17 +379,13 @@ function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreC
         </div>
       )}
 
-      {/* Per-attribute condition bars */}
       {ALL_ATTRS.map(cond => {
         let hv = hScores?.[cond.key] ?? homeTeam[cond.key] ?? 50
         let av = aScores?.[cond.key] ?? awayTeam[cond.key] ?? 50
-
-        // Override with fixture-specific values where available
         if (cond.key === 'crowd') { hv = hCrowd; av = aCrowd }
 
         const edge        = hv > av + 10 ? homeTeam.name : av > hv + 10 ? awayTeam.name : null
         const neutralised = cond.key === 'heat' && fixture.roofed
-
         const note = cond.key === 'heat'
           ? (fixture.roofed ? '(climate-controlled)' : `(index: ${heatVal})`)
           : cond.key === 'altitude'
