@@ -9,33 +9,43 @@ const AF = axios.create({
 })
 
 const TEAM_MAP = {
-  'Mexico': 'MEX', 'South Africa': 'RSA', 'South Korea': 'KOR', 'Czechia': 'CZE',
-  'Canada': 'CAN', 'Bosnia': 'BIH', 'Qatar': 'QAT', 'Switzerland': 'SUI',
+  'Mexico': 'MEX', 'South Africa': 'RSA', 'South Korea': 'KOR',
+  'Czech Republic': 'CZE', 'Czechia': 'CZE',
+  'Canada': 'CAN', 'Bosnia & Herzegovina': 'BIH', 'Bosnia': 'BIH',
+  'Qatar': 'QAT', 'Switzerland': 'SUI',
   'Brazil': 'BRA', 'Morocco': 'MAR', 'Haiti': 'HAI', 'Scotland': 'SCO',
-  'United States': 'USA', 'Paraguay': 'PAR', 'Australia': 'AUS', 'Turkey': 'TUR',
-  'Germany': 'GER', 'Curacao': 'CUW', 'Ivory Coast': 'CIV', 'Ecuador': 'ECU',
+  'United States': 'USA', 'USA': 'USA',
+  'Paraguay': 'PAR', 'Australia': 'AUS',
+  'Turkey': 'TUR', 'Türkiye': 'TUR',
+  'Germany': 'GER', 'Curacao': 'CUW', 'Curaçao': 'CUW',
+  'Ivory Coast': 'CIV', "Côte d'Ivoire": 'CIV',
+  'Ecuador': 'ECU',
   'Netherlands': 'NED', 'Japan': 'JPN', 'Sweden': 'SWE', 'Tunisia': 'TUN',
   'Belgium': 'BEL', 'Egypt': 'EGY', 'Iran': 'IRN', 'New Zealand': 'NZL',
-  'Spain': 'ESP', 'Cape Verde': 'CPV', 'Saudi Arabia': 'KSA', 'Uruguay': 'URU',
+  'Spain': 'ESP',
+  'Cape Verde': 'CPV', 'Cabo Verde': 'CPV', 'Cape Verde Islands': 'CPV',
+  'Saudi Arabia': 'KSA', 'Uruguay': 'URU',
   'France': 'FRA', 'Senegal': 'SEN', 'Iraq': 'IRQ', 'Norway': 'NOR',
   'Argentina': 'ARG', 'Algeria': 'ALG', 'Austria': 'AUT', 'Jordan': 'JOR',
-  'Portugal': 'POR', 'DR Congo': 'COD', 'Uzbekistan': 'UZB', 'Colombia': 'COL',
+  'Portugal': 'POR', 'DR Congo': 'COD', 'Congo DR': 'COD', 'Democratic Republic of Congo': 'COD',
+  'Uzbekistan': 'UZB', 'Colombia': 'COL',
   'England': 'ENG', 'Croatia': 'CRO', 'Ghana': 'GHA', 'Panama': 'PAN',
 }
 
-const FIXTURE_MAP = {
-  'MEX_RSA': 'A1', 'KOR_CZE': 'A2', 'CZE_RSA': 'A3', 'MEX_KOR': 'A4', 'CZE_MEX': 'A5', 'RSA_KOR': 'A6',
-  'CAN_BIH': 'B1', 'QAT_SUI': 'B2', 'SUI_BIH': 'B3', 'CAN_QAT': 'B4', 'BIH_QAT': 'B5', 'SUI_CAN': 'B6',
-  'HAI_SCO': 'C1', 'BRA_MAR': 'C2', 'SCO_MAR': 'C3', 'BRA_HAI': 'C4', 'SCO_BRA': 'C5', 'MAR_HAI': 'C6',
-  'USA_PAR': 'D1', 'AUS_TUR': 'D2', 'PAR_TUR': 'D3', 'USA_AUS': 'D4', 'TUR_USA': 'D5', 'PAR_AUS': 'D6',
-  'GER_CUW': 'E1', 'CIV_ECU': 'E2', 'ECU_CUW': 'E3', 'GER_CIV': 'E4', 'CUW_CIV': 'E5', 'ECU_GER': 'E6',
-  'NED_TUN': 'F1', 'JPN_SWE': 'F2', 'SWE_TUN': 'F3', 'NED_JPN': 'F4', 'TUN_JPN': 'F5', 'SWE_NED': 'F6',
-  'BEL_EGY': 'G1', 'IRN_NZL': 'G2', 'EGY_NZL': 'G3', 'BEL_IRN': 'G4', 'NZL_BEL': 'G5', 'EGY_IRN': 'G6',
-  'ESP_CPV': 'H1', 'KSA_URU': 'H2', 'CPV_URU': 'H3', 'ESP_KSA': 'H4', 'URU_ESP': 'H5', 'CPV_KSA': 'H6',
-  'FRA_SEN': 'I1', 'IRQ_NOR': 'I2', 'SEN_NOR': 'I3', 'FRA_IRQ': 'I4', 'NOR_FRA': 'I5', 'SEN_IRQ': 'I6',
-  'ARG_ALG': 'J1', 'AUT_JOR': 'J2', 'ALG_JOR': 'J3', 'ARG_AUT': 'J4', 'JOR_ARG': 'J5', 'ALG_AUT': 'J6',
-  'POR_COD': 'K1', 'UZB_COL': 'K2', 'COD_COL': 'K3', 'POR_UZB': 'K4', 'COL_POR': 'K5', 'COD_UZB': 'K6',
-  'ENG_CRO': 'L1', 'GHA_PAN': 'L2', 'ENG_GHA': 'L3', 'CRO_PAN': 'L4', 'ENG_PAN': 'L5', 'CRO_GHA': 'L6',
+// API fixture ID → our internal fixture ID
+const API_FIXTURE_MAP = {
+  1489369:'A1', 1538999:'A2', 1539004:'A3', 1489388:'A4', 1539010:'A5', 1489407:'A6',
+  1539000:'B1', 1489373:'B2', 1539005:'B3', 1489387:'B4', 1489408:'B5', 1539009:'B6',
+  1489371:'C1', 1489372:'C2', 1489390:'C3', 1489389:'C4', 1489405:'C5', 1489406:'C6',
+  1489370:'D1', 1539001:'D2', 1489391:'D3', 1539006:'D4', 1539012:'D5', 1489411:'D6',
+  1489374:'E1', 1489375:'E2', 1489393:'E3', 1489392:'E4', 1489410:'E5', 1489409:'E6',
+  1489376:'F1', 1539002:'F2', 1539007:'F3', 1489394:'F4', 1539011:'F5', 1489412:'F6',
+  1489377:'G1', 1489378:'G2', 1489395:'G3', 1489396:'G4', 1489414:'G5', 1489415:'G6',
+  1489380:'H1', 1489379:'H2', 1489397:'H3', 1489398:'H4', 1489417:'H5', 1489413:'H6',
+  1489383:'I1', 1539016:'I2', 1539017:'I3', 1489401:'I4', 1539074:'I5', 1489416:'I6',
+  1489381:'J1', 1489382:'J2', 1489399:'J3', 1489400:'J4', 1489418:'J5', 1489421:'J6',
+  1539003:'K1', 1489386:'K2', 1489404:'K3', 1539008:'K4', 1489419:'K5', 1539013:'K6',
+  1489384:'L1', 1489385:'L2', 1489402:'L3', 1489403:'L4', 1489420:'L5', 1489422:'L6',
 }
 
 export async function pollLiveScores() {
@@ -64,25 +74,22 @@ export async function syncTodayResults() {
 }
 
 async function upsertResult(f) {
-  const homeId = TEAM_MAP[f.teams?.home?.name]
-  const awayId = TEAM_MAP[f.teams?.away?.name]
+  const homeId    = TEAM_MAP[f.teams?.home?.name]
+  const awayId    = TEAM_MAP[f.teams?.away?.name]
+  const fixtureId = API_FIXTURE_MAP[f.fixture?.id]
 
   if (!homeId || !awayId) {
     console.warn('Unknown team:', f.teams?.home?.name, f.teams?.away?.name)
+    return
+  }
+  if (!fixtureId) {
+    console.warn('Unknown fixture API id:', f.fixture?.id)
     return
   }
 
   const hScore = f.goals?.home
   const aScore = f.goals?.away
   if (hScore === null || aScore === null) return
-
-  const key       = `${homeId}_${awayId}`
-  const fixtureId = FIXTURE_MAP[key]
-
-  if (!fixtureId) {
-    console.warn('No fixture ID found for:', key)
-    return
-  }
 
   await supabase.from('results').upsert({
     fixture_id: fixtureId,
