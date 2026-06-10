@@ -18,14 +18,16 @@ const ALL_ATTRS = [
 
 function formatTime(dateStr, timeStr, tz) {
   const [h, m] = timeStr.split(':').map(Number)
-  if (tz === 'GMT') return `${timeStr} GMT`
-  const totalMins = h * 60 + m - 5 * 60
-  const adjH = ((Math.floor(totalMins / 60) % 24) + 24) % 24
-  const adjM = ((totalMins % 60) + 60) % 60
-  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} EST`
+  if (tz === 'EST') {
+    const period = h >= 12 ? 'PM' : 'AM'
+    const h12    = h % 12 || 12
+    return `${h12}:${String(m).padStart(2,'0')} ${period} EST`
+  }
+  const totalMins = h * 60 + m + 240
+  const adjH      = Math.floor(totalMins / 60) % 24
+  const adjM      = totalMins % 60
+  return `${String(adjH).padStart(2,'0')}:${String(adjM).padStart(2,'0')} GMT`
 }
-
-// ─── Fixture-specific helpers ─────────────────────────────────────────────────
 
 const CITY_HEAT = {
   'Mexico City':64,'Guadalajara':76,'Monterrey':90,'Dallas':90,'Atlanta':74,
@@ -84,8 +86,6 @@ function getVenueCrowd(team, city) {
   const boost = (CROWD_CITY_BOOST[team.id] ?? {})[city] ?? 0
   return Math.min(100, team.crowd + boost)
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MatchModal({ fixtureId, onClose }) {
   const { getFixture, getTeam, getRanking, results, condWeights, tz, switchTz } = useApp()
@@ -357,10 +357,10 @@ function ConditionsTab({ homeTeam, awayTeam, homeRank, awayRank, fixture, scoreC
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {[
-            { label:'Heat index', val: heatVal,                   color: scoreColor(heatVal),                                            sub: heatLabel(heatVal, fixture.roofed) },
-            { label:'Altitude',   val: `${fixture.altitude}m`,    color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)',       sub: altLabel(fixture.altitude) },
-            { label:'Pitch',      val: pitch,                     color: scoreColor(pitch),                                              sub: pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average' },
-            { label:'Roof',       val: fixture.roofed ? '✓' : '—', color: fixture.roofed ? 'var(--blue)' : 'var(--txt)',                sub: fixture.roofed ? 'Climate-controlled' : 'Open air' },
+            { label:'Heat index', val: heatVal,                    color: scoreColor(heatVal),                                      sub: heatLabel(heatVal, fixture.roofed) },
+            { label:'Altitude',   val: `${fixture.altitude}m`,     color: fixture.altitude > 1500 ? 'var(--orange)' : 'var(--txt)', sub: altLabel(fixture.altitude) },
+            { label:'Pitch',      val: pitch,                      color: scoreColor(pitch),                                        sub: pitch >= 80 ? 'Excellent' : pitch >= 65 ? 'Good' : 'Average' },
+            { label:'Roof',       val: fixture.roofed ? '✓' : '—', color: fixture.roofed ? 'var(--blue)' : 'var(--txt)',            sub: fixture.roofed ? 'Climate-controlled' : 'Open air' },
           ].map(({ label, val, color, sub }) => (
             <div key={label}>
               <div style={{ fontSize:9, color:'var(--txt3)', fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
