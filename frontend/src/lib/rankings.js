@@ -10,13 +10,46 @@ function distanceKm(c1, c2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
 }
 
-// Total travel km: homeCity → game1City → game2City → game3City, scaled 1-100
-// Min km = 100 (best), max km = 1 (worst). Computed once from the fixture schedule.
+// ─── HEAT ────────────────────────────────────────────────────────────────────
+// Corrected city heat-index baselines (1-100, higher = hotter/more humid)
+// Overrides VENUE_HEAT from data.js with validated June averages
+const CITY_HEAT = {
+  'Mexico City':  64,   // altitude keeps it mild (~76°F avg high)
+  'Guadalajara':  76,   // warm (~86°F)
+  'Monterrey':    90,   // very hot/dry (~94°F)
+  'Dallas':       90,   // very hot (~93°F)
+  'Atlanta':      74,   // hot + humid (~88°F) — was badly wrong at 50
+  'Miami':        96,   // hot + very humid (~90°F, feels ~100°F)
+  'Los Angeles':  52,   // mild + dry (~78°F)
+  'Seattle':      38,   // mild (~66°F)
+  'Santa Clara':  46,   // Bay Area mild (~74°F)
+  'New York':     63,   // warm (~79°F + moderate humidity)
+  'Boston':       54,   // mild-warm (~74°F)
+  'Philadelphia': 70,   // warm + humid (~82°F)
+  'Kansas City':  83,   // hot (~85°F + humidity)
+  'Toronto':      53,   // warm (~74°F)
+  'Vancouver':    42,   // mild (~66°F)
+  'Houston':      96,   // extreme heat + humidity (~92°F, feels ~105°F)
+}
+
+// Per-fixture heat: corrected baseline + date adjustment for early/late June
+// Roofed stadiums always return 50 (climate-controlled)
+function getFixtureHeat(fixture) {
+  if (fixture.roofed) return 50
+  const base = CITY_HEAT[fixture.city] ?? VENUE_HEAT[fixture.city] ?? 60
+  const day  = parseInt(fixture.date.split('-')[2])
+  const adj  = day <= 14 ? -3 : day >= 21 ? 4 : 0
+  return Math.min(100, Math.max(1, base + adj))
+}
+
+// ─── TRAVEL ──────────────────────────────────────────────────────────────────
+// Total travel km: homeCity → game1City → game2City → game3City
+// Min km = 100 (best), max km = 1 (worst). Computed once from fixture schedule.
 function buildTravelScores() {
   const rawKm = {}
 
   TEAMS.forEach(team => {
-    const homeCity = TEAM_HOME_CITY[team.id]
+    const homeCity  = TEAM_HOME_CITY[team.id]
     const homeCoord = VENUE_COORDS[homeCity]
     if (!homeCoord) { rawKm[team.id] = null; return }
 
@@ -53,6 +86,7 @@ function buildTravelScores() {
 
 const TRAVEL_SCORES = buildTravelScores()
 
+// ─── STANDINGS ───────────────────────────────────────────────────────────────
 export function buildStandings(results) {
   const standings = {}
   TEAMS.forEach(t => {
@@ -84,6 +118,7 @@ export function buildStandings(results) {
   return standings
 }
 
+// ─── DYNAMIC SCORES ──────────────────────────────────────────────────────────
 function computeDynamicScores(results) {
   const teamGames = {}
   TEAMS.forEach(t => { teamGames[t.id] = [] })
@@ -96,11 +131,11 @@ function computeDynamicScores(results) {
     if (teamGames[r.away_team]) teamGames[r.away_team].push({ fixture, role: 'away', result: r })
   })
 
-  const standings  = buildStandings(results)
-  const rawScores  = {}
+  const standings = buildStandings(results)
+  const rawScores = {}
 
   TEAMS.forEach(team => {
-    const games    = teamGames[team.id]
+    const games     = teamGames[team.id]
     const fifaScore = Math.round(100 - ((Math.min(Math.max(team.fifaRank, 1), 96) - 1) / 95) * 99)
 
     if (games.length === 0) {
@@ -117,11 +152,14 @@ function computeDynamicScores(results) {
     }
 
     const heatVals = [], pitchVals = [], altVals = [], crowdVals = [], schedVals = []
-    const sorted = [...games].sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
+    const sorted   = [...games].sort((a, b) => new Date(a.fixture.date) - new Date(b.fixture.date))
 
     sorted.forEach((g, i) => {
       const f = g.fixture
-      heatVals.push(f.roofed ? 50 : (VENUE_HEAT[f.city] ?? 60))
+
+      // Heat: per-fixture value using corrected baselines + date adjustment
+      heatVals.push(getFixtureHeat(f))
+
       pitchVals.push(VENUE_PITCH[f.venue] ?? 70)
       altVals.push(f.altitude > 1500
         ? Math.min(100, team.altitude + 15)
@@ -165,7 +203,7 @@ function computeDynamicScores(results) {
       heat:     blend(team.heat,     avg(heatVals)),
       pitch:    blend(team.pitch,    avg(pitchVals)),
       altitude: blend(team.altitude, avg(altVals)),
-      travel:   TRAVEL_SCORES[team.id],   // fixed from schedule — total km home→g1→g2→g3
+      travel:   TRAVEL_SCORES[team.id],
       crowd:    blend(team.crowd,    avg(crowdVals)),
       schedule: blend(team.schedule, avg(schedVals)),
       form:     formScore,
@@ -190,6 +228,7 @@ function computeDynamicScores(results) {
   return scaled
 }
 
+// ─── PUBLIC API ──────────────────────────────────────────────────────────────
 export function getConditionScore(teamId, dynamicScores, condWeights = null) {
   const scores = dynamicScores[teamId]
   if (!scores) return 50
@@ -236,7 +275,7 @@ export function predictMatch(homeId, awayId, fixture, results, condWeights = nul
       awayAdj += (awayTeam.altitude - 50) * 0.08
     }
     if (!fixture.roofed) {
-      const vh = VENUE_HEAT[fixture.city] ?? 60
+      const vh = getFixtureHeat(fixture)
       homeAdj += (homeTeam.heat - vh) * 0.04
       awayAdj += (awayTeam.heat - vh) * 0.04
     }
@@ -268,7 +307,7 @@ function getKeyFactors(home, away, fixture) {
     factors.push(`${better} has the altitude edge at ${fixture.city} (${fixture.altitude}m)`)
   }
   if (!fixture.roofed) {
-    const vh = VENUE_HEAT[fixture.city] ?? 60
+    const vh = getFixtureHeat(fixture)
     if (home.heat > vh + 20 && away.heat < vh - 20)
       factors.push(`${home.name} far more suited to outdoor heat in ${fixture.city}`)
     if (away.heat > vh + 20 && home.heat < vh - 20)
