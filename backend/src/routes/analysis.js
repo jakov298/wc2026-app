@@ -60,8 +60,8 @@ Tournament form: ${home.name} [${formHome}] · ${away.name} [${formAway}]
 ${prediction?.keyFactors?.length ? 'Key edges: ' + prediction.keyFactors.join(' | ') : ''}
 
 Write ONE paragraph (180-200 words) that:
-1. Uses the condition scores above to explain the key tactical edges — reference the actual numbers
-2. Names 2-3 real players from each squad who are most relevant
+1. Compares the condition scores to explain which team has the structural advantages for this specific fixture — reference the actual numbers
+2. Explains why each significant gap matters tactically (heat acclimatisation, altitude impact, travel fatigue, crowd support, schedule pressure)
 3. ${isPlayed ? 'Explains what the result means tactically and for group qualification' : 'Gives a specific scoreline prediction and identifies the best value bet (e.g. Asian handicap, both teams to score, total goals). End the bet suggestion with: "Not betting advice. Gamble responsibly."'}
 
 Be specific. Reference the actual scores. Write like The Athletic.`
