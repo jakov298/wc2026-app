@@ -25,6 +25,9 @@ export default function App() {
   const [activeMatch, setActiveMatch] = useState(null)
   const [loading,     setLoading]     = useState(true)
   const [darkMode,    setDarkMode]    = useState(false)
+  const [tz,          setTz]          = useState(() => localStorage.getItem('wc_tz') || 'GMT')
+
+  const switchTz = t => { setTz(t); localStorage.setItem('wc_tz', t) }
 
   useEffect(() => {
     document.documentElement.classList.toggle('light', !darkMode)
@@ -66,6 +69,7 @@ export default function App() {
     condWeights, setCondWeights,
     activeMatch, setActiveMatch,
     loading,
+    tz, switchTz,
     getTeam:    id => TEAMS.find(t => t.id === id),
     getFixture: id => FIXTURES.find(f => f.id === id),
     getRanking: id => rankings.find(r => r.id === id),
